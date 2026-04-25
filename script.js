@@ -1,4 +1,5 @@
 const storageKey = "greenhouse-management-v2";
+const apiBase = window.location.protocol === "file:" ? "http://127.0.0.1:8088/api" : "api";
 
 const defaultState = {
   dailyLogs: [
@@ -260,13 +261,13 @@ dataFileForm.addEventListener("submit", async (event) => {
     formData.append("date", dataFileDate.value);
     formData.append("note", document.querySelector("#dataFileNote").value.trim());
     formData.append("file", file);
-    const response = await fetch("api/files", {
+    const response = await fetch(apiUrl("files"), {
       method: "POST",
       body: formData
     });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      throw new Error(payload.error || "本機資料庫沒有回應。");
+      throw new Error(payload.error || "本機資料庫沒有回應，請確認已執行「啟動本機管理網站.bat」。");
     }
     dataFileForm.reset();
     dataFileDate.value = dailyDate.value;
@@ -282,12 +283,12 @@ document.querySelector("#dataFileList").addEventListener("click", async (event) 
 
   const id = button.dataset.fileId;
   if (button.dataset.fileAction === "download") {
-    window.location.href = `api/files/${encodeURIComponent(id)}/download`;
+    window.location.href = apiUrl(`files/${encodeURIComponent(id)}/download`);
   }
 
   if (button.dataset.fileAction === "delete") {
     if (!confirm("確定要刪除此檔案？")) return;
-    const response = await fetch(`api/files/${encodeURIComponent(id)}`, { method: "DELETE" });
+    const response = await fetch(apiUrl(`files/${encodeURIComponent(id)}`), { method: "DELETE" });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
       alert(`刪除失敗：${payload.error || "本機資料庫沒有回應。"}`);
@@ -391,7 +392,7 @@ function validateImportedState(imported) {
 }
 
 async function getDataFiles() {
-  const response = await fetch("api/files");
+  const response = await fetch(apiUrl("files"));
   if (!response.ok) {
     throw new Error("請使用「啟動本機管理網站.bat」開啟網站，才能讀寫本機資料庫資料夾。");
   }
@@ -429,6 +430,10 @@ function formatFileSize(size) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function apiUrl(path) {
+  return `${apiBase}/${path}`;
 }
 
 function getPageFromHash() {
