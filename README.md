@@ -10,6 +10,7 @@
 - `styles.css`
 - `script.js`
 - `assets/`
+  - `fonts/LXGWWenKai-Medium.ttf`
 
 使用或搬移時請保留整個 `管理網站` 資料夾內的內容。
 
@@ -30,6 +31,12 @@
 3. 在實驗室電腦用瀏覽器開啟 `index.html`。
 4. 如需沿用目前資料，按「匯入」選擇 JSON 備份。
 5. 之後固定在實驗室電腦使用，資料會保存在該電腦的瀏覽器。
+
+## 字體
+
+網站已內建 `LXGW WenKai Medium` 字體檔，瀏覽器會從 `assets/fonts/` 載入，不需要在實驗室電腦另外安裝字體，也不需要連網下載。
+
+LXGW WenKai 採用 SIL Open Font License 1.1 授權。
 
 ## 資料儲存方式
 

@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "LXGW WenKai Local";
+  src: url("assets/fonts/LXGWWenKai-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --bg: #f4f6f2;
   --surface: #ffffff;
@@ -31,7 +39,7 @@ body {
     linear-gradient(90deg, rgba(220, 228, 216, 0.38) 1px, transparent 1px),
     var(--bg);
   background-size: auto, 48px 48px, auto;
-  font-family: "LXGW WenKai Medium", "LXGW WenKai", "DFKai-SB", "標楷體", "Times New Roman", serif;
+  font-family: "LXGW WenKai Local", "LXGW WenKai Medium", "LXGW WenKai", "DFKai-SB", "標楷體", "Times New Roman", serif;
 }
 
 button,
