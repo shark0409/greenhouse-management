@@ -31,7 +31,7 @@ body {
     linear-gradient(90deg, rgba(220, 228, 216, 0.38) 1px, transparent 1px),
     var(--bg);
   background-size: auto, 48px 48px, auto;
-  font-family: "Noto Sans TC", "Microsoft JhengHei", Arial, sans-serif;
+  font-family: "Times New Roman", "DFKai-SB", "標楷體", serif;
 }
 
 button,
