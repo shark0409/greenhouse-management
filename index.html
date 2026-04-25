@@ -60,26 +60,108 @@
           </div>
           <p>集中處理日誌、排程、專案進度與重要事件。此版本適合在固定管理電腦上填寫與保存資料。</p>
         </div>
+
+        <div class="visual-grid">
+          <section class="panel visual-panel">
+            <div class="panel-heading">
+              <h2>溫室作業分區</h2>
+              <span>管理視圖</span>
+            </div>
+            <div class="farm-map" aria-label="溫室作業分區管理狀態">
+              <div class="zone zone-ok">
+                <strong>A 區</strong>
+                <span>巡檢完成</span>
+              </div>
+              <div class="zone zone-watch">
+                <strong>B 區</strong>
+                <span>待補紀錄</span>
+              </div>
+              <div class="zone zone-ok">
+                <strong>C 區</strong>
+                <span>排程正常</span>
+              </div>
+              <div class="zone zone-alert">
+                <strong>D 區</strong>
+                <span>工單追蹤</span>
+              </div>
+              <div class="walkway">管理走道</div>
+            </div>
+            <div class="map-legend">
+              <span><i class="legend-ok"></i>完成</span>
+              <span><i class="legend-watch"></i>待確認</span>
+              <span><i class="legend-alert"></i>需追蹤</span>
+            </div>
+          </section>
+
+          <section class="panel visual-panel">
+            <div class="panel-heading">
+              <h2>本週作業量</h2>
+              <span>登錄狀態</span>
+            </div>
+            <div class="workload-chart" aria-label="本週作業量柱狀圖">
+              <div class="bar-column" style="--bar: 54%"><span></span><strong>一</strong><small>3</small></div>
+              <div class="bar-column" style="--bar: 70%"><span></span><strong>二</strong><small>4</small></div>
+              <div class="bar-column" style="--bar: 42%"><span></span><strong>三</strong><small>2</small></div>
+              <div class="bar-column" style="--bar: 86%"><span></span><strong>四</strong><small>5</small></div>
+              <div class="bar-column" style="--bar: 62%"><span></span><strong>五</strong><small>3</small></div>
+              <div class="bar-column" style="--bar: 34%"><span></span><strong>六</strong><small>1</small></div>
+              <div class="bar-column" style="--bar: 24%"><span></span><strong>日</strong><small>1</small></div>
+            </div>
+          </section>
+        </div>
+
+        <div class="process-strip" aria-label="管理流程">
+          <div class="process-step complete">
+            <span>01</span>
+            <strong>填寫日誌</strong>
+          </div>
+          <div class="process-line"></div>
+          <div class="process-step complete">
+            <span>02</span>
+            <strong>排程確認</strong>
+          </div>
+          <div class="process-line"></div>
+          <div class="process-step current">
+            <span>03</span>
+            <strong>進度追蹤</strong>
+          </div>
+          <div class="process-line muted"></div>
+          <div class="process-step">
+            <span>04</span>
+            <strong>匯出備份</strong>
+          </div>
+        </div>
+
         <div class="metric-grid">
           <article class="metric">
             <span>今日待辦</span>
             <strong id="metricTasks">0</strong>
             <small class="status-watch">需要管理者確認</small>
+            <div class="metric-spark">
+              <i style="height: 40%"></i><i style="height: 70%"></i><i style="height: 52%"></i>
+            </div>
           </article>
           <article class="metric">
             <span>管理日誌</span>
             <strong id="metricDailyLogs">0</strong>
             <small class="status-good">已建立紀錄</small>
+            <div class="metric-spark">
+              <i style="height: 45%"></i><i style="height: 60%"></i><i style="height: 82%"></i>
+            </div>
           </article>
           <article class="metric">
             <span>重要事件</span>
             <strong id="metricSystemLogs">0</strong>
             <small class="status-alert">需定期追蹤</small>
+            <div class="metric-spark">
+              <i style="height: 76%"></i><i style="height: 42%"></i><i style="height: 66%"></i>
+            </div>
           </article>
           <article class="metric">
             <span>平均進度</span>
             <strong id="metricProgress">0%</strong>
             <small class="status-good">專案執行狀態</small>
+            <div class="metric-ring" aria-hidden="true"></div>
           </article>
         </div>
 

@@ -40,10 +40,10 @@ const defaultState = {
     { id: 3, text: "確認本週巡檢人員分工", done: true }
   ],
   progress: [
-    { name: "管理日誌雲端同步", value: 82 },
+    { name: "本機資料備份流程", value: 82 },
     { name: "風扇降溫測試分析", value: 68 },
     { name: "每日管理流程數位化", value: 45 },
-    { name: "管理者權限與登入設定", value: 56 }
+    { name: "實驗室電腦搬移準備", value: 56 }
   ],
   calendarEvents: {
     8: ["0408 溫室資料分析"],
@@ -56,7 +56,7 @@ const defaultState = {
   }
 };
 
-let state = loadState();
+let state = migrateState(loadState());
 
 const dailyLogForm = document.querySelector("#dailyLogForm");
 const systemLogForm = document.querySelector("#systemLogForm");
@@ -78,6 +78,24 @@ function loadState() {
 
 function saveState() {
   localStorage.setItem(storageKey, JSON.stringify(state));
+}
+
+function migrateState(currentState) {
+  currentState.progress = currentState.progress.map((item) => {
+    if (item.name === "管理日誌雲端同步") {
+      return { ...item, name: "本機資料備份流程" };
+    }
+    if (item.name === "管理者權限與登入設定") {
+      return { ...item, name: "實驗室電腦搬移準備" };
+    }
+    return item;
+  });
+  saveMigratedState(currentState);
+  return currentState;
+}
+
+function saveMigratedState(currentState) {
+  localStorage.setItem(storageKey, JSON.stringify(currentState));
 }
 
 function renderDailyLogs() {
@@ -132,6 +150,7 @@ function renderOverview() {
   document.querySelector("#metricDailyLogs").textContent = state.dailyLogs.length;
   document.querySelector("#metricSystemLogs").textContent = state.systemLogs.length;
   document.querySelector("#metricProgress").textContent = `${averageProgress}%`;
+  document.querySelector(".metric-ring").style.setProperty("--progress", `${averageProgress}%`);
 
   const recentDaily = [...state.dailyLogs]
     .sort((a, b) => b.date.localeCompare(a.date))
