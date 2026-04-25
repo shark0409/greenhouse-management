@@ -1,6 +1,9 @@
 const storageKey = "greenhouse-management-v2";
 const apiBase = window.location.protocol === "file:" ? "http://127.0.0.1:8088/api" : "api";
-
+const dailyLogPreviewCount = 3;
+const dailyLogExpandedCount = 5;
+const systemLogPreviewCount = 3;
+const systemLogExpandedCount = 5;
 const defaultState = {
   dailyLogs: [
     {
@@ -47,45 +50,100 @@ const defaultState = {
     { name: "實驗室電腦搬移準備", value: 56 }
   ],
   calendarEvents: {
-    8: ["0408 溫室資料分析"],
-    17: ["0417 感測測試紀錄"],
-    18: ["0418 合併資料檢核"],
-    21: ["感測測試資料檢核"],
-    23: ["0423 作業資料歸檔"],
-    25: ["系統日誌整理"],
-    28: ["灌溉策略檢討"]
+    "2026-04-08": [{ title: "0408 溫室資料分析", type: "排程", note: "" }],
+    "2026-04-17": [{ title: "0417 感測測試紀錄", type: "排程", note: "" }],
+    "2026-04-18": [{ title: "0418 合併資料檢核", type: "排程", note: "" }],
+    "2026-04-21": [{ title: "感測測試資料檢核", type: "提醒", note: "" }],
+    "2026-04-23": [{ title: "0423 作業資料歸檔", type: "排程", note: "" }],
+    "2026-04-25": [{ title: "系統日誌整理", type: "提醒", note: "" }],
+    "2026-04-28": [{ title: "灌溉策略檢討", type: "會議", note: "" }]
   }
 };
 
-let state = migrateState(loadState());
+let state = structuredClone(defaultState);
+let currentMonth = new Date(2026, 3, 1);
+let weatherRefreshTimer = null;
+let dailyLogExpandedView = false;
+let dailyLogPage = 0;
+let systemLogExpandedView = false;
+let systemLogPage = 0;
 
 const dailyLogForm = document.querySelector("#dailyLogForm");
-const dataFileForm = document.querySelector("#dataFileForm");
 const systemLogForm = document.querySelector("#systemLogForm");
+const todayTaskForm = document.querySelector("#todayTaskForm");
+const dataFileForm = document.querySelector("#dataFileForm");
+const calendarEventForm = document.querySelector("#calendarEventForm");
+const progressForm = document.querySelector("#progressForm");
 const dailyDate = document.querySelector("#dailyDate");
-const dataFileDate = document.querySelector("#dataFileDate");
 const systemTime = document.querySelector("#systemTime");
+const dataFileDate = document.querySelector("#dataFileDate");
+const calendarEventDate = document.querySelector("#calendarEventDate");
+const weatherSummary = document.querySelector("#weatherAlertSummary");
+const refreshWeatherBtn = document.querySelector("#refreshWeatherBtn");
+const prevMonthBtn = document.querySelector("#prevMonthBtn");
+const nextMonthBtn = document.querySelector("#nextMonthBtn");
 
-dailyDate.value = "2026-04-25";
-dataFileDate.value = "2026-04-25";
-systemTime.value = "2026-04-25T09:30";
+async function initApp() {
+  setDefaultFormValues();
+  state = await loadAppState();
+  renderAll();
+  await Promise.all([renderWeatherAlerts(), renderDataFiles()]);
+  showPage(getPageFromHash(), false);
+  weatherRefreshTimer = window.setInterval(() => {
+    renderWeatherAlerts(true);
+  }, 5 * 60 * 1000);
+}
 
-function loadState() {
-  const saved = localStorage.getItem(storageKey);
-  if (!saved) return structuredClone(defaultState);
+function setDefaultFormValues() {
+  dailyDate.value = "2026-04-25";
+  dataFileDate.value = "2026-04-25";
+  systemTime.value = "2026-04-25T09:30";
+  calendarEventDate.value = "2026-04-25";
+}
+
+async function loadAppState() {
   try {
-    return JSON.parse(saved);
+    const response = await fetch(apiUrl("app-state"));
+    if (!response.ok) throw new Error("本機資料庫沒有回應");
+    const payload = await response.json();
+    return normalizeState(payload);
   } catch {
-    return structuredClone(defaultState);
+    const saved = localStorage.getItem(storageKey);
+    if (!saved) return normalizeState(defaultState);
+    try {
+      return normalizeState(JSON.parse(saved));
+    } catch {
+      return normalizeState(defaultState);
+    }
   }
 }
 
-function saveState() {
+async function persistState() {
+  state = normalizeState(state);
   localStorage.setItem(storageKey, JSON.stringify(state));
+  const response = await fetch(apiUrl("app-state"), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(state)
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || "本機資料庫寫入失敗。");
+  }
+  state = normalizeState(await response.json());
 }
 
-function migrateState(currentState) {
-  currentState.progress = currentState.progress.map((item) => {
+function normalizeState(rawState) {
+  const baseState = structuredClone(defaultState);
+  if (rawState && typeof rawState === "object") {
+    ["dailyLogs", "systemLogs", "tasks", "progress"].forEach((key) => {
+      if (Array.isArray(rawState[key])) baseState[key] = rawState[key];
+    });
+    baseState.calendarEvents = normalizeCalendarEvents(rawState.calendarEvents);
+  }
+
+  baseState.tasks = normalizeTasks(baseState.tasks, baseState.calendarEvents);
+  baseState.progress = baseState.progress.map((item) => {
     if (item.name === "管理日誌雲端同步") {
       return { ...item, name: "本機資料備份流程" };
     }
@@ -94,37 +152,144 @@ function migrateState(currentState) {
     }
     return item;
   });
-  Object.keys(currentState.calendarEvents).forEach((day) => {
-    currentState.calendarEvents[day] = currentState.calendarEvents[day].filter((event) => event !== "例行巡檢");
-  });
-  saveMigratedState(currentState);
-  return currentState;
+  baseState.dailyLogs = [...baseState.dailyLogs]
+    .sort((a, b) => b.date.localeCompare(a.date));
+  return baseState;
 }
 
-function saveMigratedState(currentState) {
-  localStorage.setItem(storageKey, JSON.stringify(currentState));
+function normalizeCalendarEvents(events) {
+  const normalized = {};
+  if (!events || typeof events !== "object") return normalized;
+  Object.entries(events).forEach(([key, items]) => {
+    let isoDate = key;
+    if (/^\d+$/.test(key)) {
+      isoDate = `2026-04-${String(key).padStart(2, "0")}`;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate) || !Array.isArray(items)) return;
+    const validItems = items
+      .map((item) => {
+        if (typeof item === "string") {
+          return { title: item, type: "排程", note: "" };
+        }
+        if (item && typeof item === "object" && item.title) {
+          return {
+            title: String(item.title).trim(),
+            type: String(item.type || "排程").trim() || "排程",
+            note: String(item.note || "").trim()
+          };
+        }
+        return null;
+      })
+      .filter(Boolean);
+    if (validItems.length) normalized[isoDate] = validItems;
+  });
+  return normalized;
+}
+
+function normalizeTasks(tasks, calendarEvents) {
+  const validCalendarKeys = new Set();
+  Object.entries(calendarEvents || {}).forEach(([date, items]) => {
+    items.forEach((item) => {
+      const title = String(item.title || "").trim();
+      const type = String(item.type || "排程").trim() || "排程";
+      if (title) {
+        validCalendarKeys.add(buildCalendarTaskKey(date, title, type));
+      }
+    });
+  });
+
+  return (Array.isArray(tasks) ? tasks : [])
+    .map((item, index) => {
+      if (typeof item === "string") {
+        return {
+          id: index + 1,
+          text: item.trim(),
+          done: false,
+          source: "manual",
+          date: ""
+        };
+      }
+      if (!item || typeof item !== "object" || !item.text) {
+        return null;
+      }
+      const text = String(item.text).trim();
+      const source = item.source === "calendar" ? "calendar" : "manual";
+      const date = String(item.date || "").trim();
+      const calendarType = String(item.calendarType || item.type || "").trim();
+      const calendarKey = source === "calendar"
+        ? String(item.calendarKey || buildCalendarTaskKey(date, text, calendarType || "排程")).trim()
+        : "";
+      if (!text) return null;
+      if (source === "calendar") {
+        const isRecurringInspection = text === "巡檢" && calendarType === "例行";
+        if (!isRecurringInspection && !validCalendarKeys.has(calendarKey)) {
+          return null;
+        }
+      }
+      return {
+        id: Number(item.id) || index + 1,
+        text,
+        done: Boolean(item.done),
+        source,
+        date,
+        calendarType: calendarType || (source === "calendar" ? "排程" : ""),
+        calendarKey
+      };
+    })
+    .filter(Boolean);
+}
+
+function renderAll() {
+  renderDailyLogs();
+  renderSystemLogs();
+  renderTasks();
+  renderOverview();
+  renderCalendar();
+  renderProgress();
 }
 
 function renderDailyLogs() {
   const list = document.querySelector("#dailyLogList");
+  const pagination = document.querySelector("#dailyLogPagination");
   const sorted = [...state.dailyLogs].sort((a, b) => b.date.localeCompare(a.date));
-  list.innerHTML = sorted.map((log) => `
+  const pageSize = dailyLogExpandedView ? dailyLogExpandedCount : dailyLogPreviewCount;
+  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
+  dailyLogPage = Math.min(dailyLogPage, pageCount - 1);
+  const visibleLogs = sorted.slice(dailyLogPage * pageSize, dailyLogPage * pageSize + pageSize);
+
+  list.innerHTML = visibleLogs.map((log) => `
     <article class="feed-item">
       <div class="item-top">
         <strong>${escapeHtml(log.date)} ${escapeHtml(log.type)}</strong>
         <span class="tag">${escapeHtml(log.status)}</span>
       </div>
-      <p>${escapeHtml(log.note)}</p>
+      <p class="feed-note expanded">${escapeHtml(log.note)}</p>
       <small>負責人：${escapeHtml(log.owner || "未指定")}</small>
     </article>
   `).join("");
-  document.querySelector("#dailyLogCount").textContent = `${state.dailyLogs.length} 筆`;
+  document.querySelector("#dailyLogCount").textContent = `顯示 ${visibleLogs.length} / 共 ${sorted.length} 筆`;
+  pagination.innerHTML = `
+    <button class="icon-button compact-button" type="button" data-daily-page-action="toggle">
+      ${dailyLogExpandedView ? "收合" : "開啟更多"}
+    </button>
+    ${dailyLogExpandedView ? `
+      <button class="icon-button compact-button" type="button" data-daily-page-action="prev" ${dailyLogPage === 0 ? "disabled" : ""}>上一頁</button>
+      <span class="feed-page-indicator">第 ${dailyLogPage + 1} / ${pageCount} 頁</span>
+      <button class="icon-button compact-button" type="button" data-daily-page-action="next" ${dailyLogPage >= pageCount - 1 ? "disabled" : ""}>下一頁</button>
+    ` : ""}
+  `;
 }
 
 function renderSystemLogs() {
   const list = document.querySelector("#systemLogList");
+  const pagination = document.querySelector("#systemLogPagination");
   const sorted = [...state.systemLogs].sort((a, b) => b.time.localeCompare(a.time));
-  list.innerHTML = sorted.map((log) => `
+  const pageSize = systemLogExpandedView ? systemLogExpandedCount : systemLogPreviewCount;
+  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
+  systemLogPage = Math.min(systemLogPage, pageCount - 1);
+  const visibleLogs = sorted.slice(systemLogPage * pageSize, systemLogPage * pageSize + pageSize);
+
+  list.innerHTML = visibleLogs.map((log) => `
     <article class="timeline-item">
       <div class="item-top">
         <strong>${formatDateTime(log.time)}</strong>
@@ -133,23 +298,47 @@ function renderSystemLogs() {
       <p>${escapeHtml(log.message)}</p>
     </article>
   `).join("");
-  document.querySelector("#systemLogCount").textContent = `${state.systemLogs.length} 筆`;
+  document.querySelector("#systemLogCount").textContent = `顯示 ${visibleLogs.length} / 共 ${sorted.length} 筆`;
+  pagination.innerHTML = `
+    <button class="icon-button compact-button" type="button" data-system-page-action="toggle">
+      ${systemLogExpandedView ? "收合" : "開啟更多"}
+    </button>
+    ${systemLogExpandedView ? `
+      <button class="icon-button compact-button" type="button" data-system-page-action="prev" ${systemLogPage === 0 ? "disabled" : ""}>上一頁</button>
+      <span class="feed-page-indicator">第 ${systemLogPage + 1} / ${pageCount} 頁</span>
+      <button class="icon-button compact-button" type="button" data-system-page-action="next" ${systemLogPage >= pageCount - 1 ? "disabled" : ""}>下一頁</button>
+    ` : ""}
+  `;
 }
 
 function renderTasks() {
   const list = document.querySelector("#todayTasks");
-  list.innerHTML = state.tasks.map((task) => `
-    <label class="todo-item ${task.done ? "done" : ""}">
-      <input type="checkbox" data-task-id="${task.id}" ${task.done ? "checked" : ""}>
-      <span>${escapeHtml(task.text)}</span>
-    </label>
+  const tasks = getTodayTaskItems();
+  list.innerHTML = tasks.map((task) => `
+    <article class="todo-item ${task.done ? "done" : ""} ${task.source === "calendar" ? "linked" : ""}">
+      <label class="todo-check">
+        <input
+          type="checkbox"
+          ${task.source === "calendar"
+            ? `data-calendar-task-key="${escapeHtml(task.calendarKey)}" data-calendar-task-date="${escapeHtml(task.date)}" data-calendar-task-type="${escapeHtml(task.calendarType)}" data-calendar-task-title="${escapeHtml(task.text)}"`
+            : `data-task-id="${task.id}"`}
+          ${task.done ? "checked" : ""}
+        >
+        <span>${escapeHtml(task.text)}</span>
+      </label>
+      <div class="todo-tools">
+        ${task.source === "calendar"
+          ? `<span class="tag todo-tag">${escapeHtml(task.calendarType || "行事曆")}</span>`
+          : `<span class="tag todo-tag">手動</span><button class="danger-button compact-button" type="button" data-task-action="delete" data-task-id="${task.id}">刪除</button>`}
+      </div>
+    </article>
   `).join("");
-  const remaining = state.tasks.filter((task) => !task.done).length;
+  const remaining = tasks.filter((task) => !task.done).length;
   document.querySelector("#todayTaskCount").textContent = `${remaining} 項待處理`;
 }
 
 function renderOverview() {
-  const remaining = state.tasks.filter((task) => !task.done).length;
+  const remaining = getTodayTaskItems().filter((task) => !task.done).length;
   const averageProgress = Math.round(
     state.progress.reduce((total, item) => total + item.value, 0) / state.progress.length
   );
@@ -159,25 +348,22 @@ function renderOverview() {
   document.querySelector("#metricProgress").textContent = `${averageProgress}%`;
   document.querySelector(".metric-ring").style.setProperty("--progress", `${averageProgress}%`);
 
-  const recentDaily = [...state.dailyLogs]
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 3);
-  document.querySelector("#recentDailyLogs").innerHTML = recentDaily.map((log, index) => `
-    <article class="summary-item ${index === 0 ? "accent" : ""}">
-      <strong>${escapeHtml(log.date)} ${escapeHtml(log.type)}</strong>
-      <span>${escapeHtml(log.note)}</span>
-      <small>負責人：${escapeHtml(log.owner || "未指定")} · ${escapeHtml(log.status)}</small>
-    </article>
-  `).join("");
+  document.querySelector("#recentDailyLogs").innerHTML = [...state.dailyLogs]
+    .slice(0, 3)
+    .map((log, index) => `
+      <article class="summary-item ${index === 0 ? "accent" : ""}">
+        <strong>${escapeHtml(log.date)} ${escapeHtml(log.type)}</strong>
+        <span>${escapeHtml(log.note)}</span>
+        <small>負責人：${escapeHtml(log.owner || "未指定")} · ${escapeHtml(log.status)}</small>
+      </article>
+    `).join("");
 
-  const upcomingEvents = Object.entries(state.calendarEvents)
-    .flatMap(([day, events]) => events.map((event) => ({ day: Number(day), event })))
-    .filter((item) => item.day >= 25)
-    .slice(0, 4);
+  const upcomingEvents = getUpcomingCalendarEvents().slice(0, 4);
   document.querySelector("#upcomingEvents").innerHTML = upcomingEvents.map((item) => `
     <article class="summary-item">
-      <strong>4/${item.day}</strong>
-      <span>${escapeHtml(item.event)}</span>
+      <strong>${escapeHtml(item.dateLabel)}</strong>
+      <span>${escapeHtml(item.title)}</span>
+      <small>${escapeHtml(item.type)}</small>
     </article>
   `).join("");
 
@@ -193,18 +379,90 @@ function renderOverview() {
   `).join("");
 }
 
+function getTodayTaskItems() {
+  const todayKey = getTodayKey();
+  const manualTasks = state.tasks
+    .filter((task) => task.source !== "calendar" && (!task.date || task.date === todayKey))
+    .sort((a, b) => Number(a.done) - Number(b.done));
+  const savedCalendarTasks = new Map(
+    state.tasks
+      .filter((task) => task.source === "calendar")
+      .map((task) => [task.calendarKey, task])
+  );
+  const todayCalendarTasks = getTodayCalendarEvents().map((event) => {
+    const calendarKey = buildCalendarTaskKey(todayKey, event.title, event.type);
+    const savedTask = savedCalendarTasks.get(calendarKey);
+    return {
+      id: savedTask?.id || calendarKey,
+      text: event.title,
+      done: Boolean(savedTask?.done),
+      source: "calendar",
+      date: todayKey,
+      calendarType: event.type,
+      calendarKey
+    };
+  });
+  return [...manualTasks, ...todayCalendarTasks];
+}
+
+function getTodayCalendarEvents() {
+  const todayKey = getTodayKey();
+  return [{ title: "巡檢", type: "例行", note: "" }, ...(state.calendarEvents[todayKey] || [])];
+}
+
+function getUpcomingCalendarEvents() {
+  const today = new Date(`${getTodayKey()}T00:00:00`);
+  return Object.entries(state.calendarEvents)
+    .flatMap(([date, events]) => events.map((event) => ({
+      date,
+      dateLabel: date.replaceAll("-", "/"),
+      title: event.title,
+      type: event.type
+    })))
+    .filter((item) => new Date(`${item.date}T00:00:00`) >= today)
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
 function renderCalendar() {
   const grid = document.querySelector("#calendarGrid");
+  const monthLabel = document.querySelector("#calendarMonthLabel");
+  const title = document.querySelector("#calendarTitle");
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startWeekday = firstDay.getDay();
+  const daysInMonth = lastDay.getDate();
+
+  monthLabel.textContent = `${year} 年 ${month + 1} 月`;
+  title.textContent = `${year} 年 ${month + 1} 月行事曆`;
+
   const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
   const headers = weekdays.map((day) => `<div class="calendar-weekday">週${day}</div>`);
-  const blanks = Array.from({ length: 3 }, () => `<div class="calendar-day calendar-empty" aria-hidden="true"></div>`);
-  const days = Array.from({ length: 30 }, (_, index) => {
+  const blanks = Array.from({ length: startWeekday }, () => `<div class="calendar-day calendar-empty" aria-hidden="true"></div>`);
+  const days = Array.from({ length: daysInMonth }, (_, index) => {
     const day = index + 1;
-    const events = ["巡檢", ...(state.calendarEvents[day] || [])];
+    const isoDate = formatDateKey(year, month, day);
+    const customEvents = state.calendarEvents[isoDate] || [];
+    const events = [{ title: "巡檢", type: "例行" }, ...customEvents];
     return `
       <div class="calendar-day">
-        <strong>4/${day}</strong>
-        ${events.map((event) => `<span class="event">${escapeHtml(event)}</span>`).join("")}
+        <strong>${month + 1}/${day}</strong>
+        ${events.map((event, eventIndex) => `
+          <span class="event event-${escapeHtml(event.type)}" title="${escapeHtml(event.note || event.title)}">
+            <span class="event-label">${escapeHtml(event.title)}</span>
+            ${event.type === "例行" ? "" : `
+              <button
+                class="event-remove"
+                type="button"
+                aria-label="刪除 ${escapeHtml(event.title)}"
+                data-calendar-action="delete"
+                data-calendar-date="${escapeHtml(isoDate)}"
+                data-calendar-index="${eventIndex - 1}"
+              >×</button>
+            `}
+          </span>
+        `).join("")}
       </div>
     `;
   });
@@ -220,22 +478,17 @@ function renderProgress() {
         <span>${item.value}%</span>
       </div>
       <div class="progress-bar"><span style="width:${item.value}%"></span></div>
+      <div class="progress-actions">
+        <button class="icon-button compact-button" type="button" data-progress-action="step" data-progress-step="-5" data-progress-index="${index}">-5</button>
+        <button class="icon-button compact-button" type="button" data-progress-action="step" data-progress-step="5" data-progress-index="${index}">+5</button>
+        <button class="danger-button" type="button" data-progress-action="delete" data-progress-index="${index}">刪除</button>
+      </div>
       <input type="range" min="0" max="100" value="${item.value}" data-progress-index="${index}" aria-label="${escapeHtml(item.name)}完成度">
     </article>
   `).join("");
 }
 
-function renderAll() {
-  renderDailyLogs();
-  renderSystemLogs();
-  renderTasks();
-  renderOverview();
-  renderCalendar();
-  renderProgress();
-  renderDataFiles();
-}
-
-dailyLogForm.addEventListener("submit", (event) => {
+dailyLogForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   state.dailyLogs.unshift({
     date: dailyDate.value,
@@ -244,10 +497,97 @@ dailyLogForm.addEventListener("submit", (event) => {
     status: document.querySelector("#dailyStatus").value,
     note: document.querySelector("#dailyNote").value.trim() || "未填寫內容"
   });
-  saveState();
-  dailyLogForm.reset();
-  dailyDate.value = "2026-04-25";
-  renderAll();
+  dailyLogPage = 0;
+  try {
+    await persistState();
+    dailyLogForm.reset();
+    dailyDate.value = formatDateInput(new Date());
+    renderAll();
+  } catch (error) {
+    alert(`日誌儲存失敗：${error.message}`);
+  }
+});
+
+systemLogForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  state.systemLogs.unshift({
+    time: systemTime.value,
+    level: document.querySelector("#systemLevel").value,
+    message: document.querySelector("#systemMessage").value.trim() || "未填寫事件內容"
+  });
+  systemLogPage = 0;
+  try {
+    await persistState();
+    systemLogForm.reset();
+    systemTime.value = formatDateTimeLocalInput(new Date());
+    renderAll();
+  } catch (error) {
+    alert(`系統日誌儲存失敗：${error.message}`);
+  }
+});
+
+calendarEventForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const date = calendarEventDate.value;
+  const title = document.querySelector("#calendarEventTitle").value.trim();
+  if (!date || !title) return;
+  const nextEvents = [...(state.calendarEvents[date] || [])];
+  nextEvents.push({
+    title,
+    type: document.querySelector("#calendarEventType").value,
+    note: document.querySelector("#calendarEventNote").value.trim()
+  });
+  state.calendarEvents[date] = nextEvents;
+  try {
+    await persistState();
+    currentMonth = new Date(`${date}T00:00:00`);
+    calendarEventForm.reset();
+    calendarEventDate.value = date;
+    renderAll();
+  } catch (error) {
+    alert(`行事曆儲存失敗：${error.message}`);
+  }
+});
+
+progressForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const nameInput = document.querySelector("#progressName");
+  const valueInput = document.querySelector("#progressValue");
+  const name = nameInput.value.trim();
+  if (!name) return;
+  state.progress.push({
+    name,
+    value: clampProgressValue(Number(valueInput.value))
+  });
+  try {
+    await persistState();
+    progressForm.reset();
+    valueInput.value = "0";
+    renderAll();
+  } catch (error) {
+    alert(`進度項目新增失敗：${error.message}`);
+  }
+});
+
+todayTaskForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const input = document.querySelector("#todayTaskInput");
+  const text = input.value.trim();
+  if (!text) return;
+  state.tasks.unshift({
+    id: getNextTaskId(),
+    text,
+    done: false,
+    source: "manual",
+    date: getTodayKey()
+  });
+  try {
+    await persistState();
+    todayTaskForm.reset();
+    renderAll();
+  } catch (error) {
+    alert(`待辦新增失敗：${error.message}`);
+  }
 });
 
 dataFileForm.addEventListener("submit", async (event) => {
@@ -298,42 +638,165 @@ document.querySelector("#dataFileList").addEventListener("click", async (event) 
   }
 });
 
-systemLogForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  state.systemLogs.unshift({
-    time: systemTime.value,
-    level: document.querySelector("#systemLevel").value,
-    message: document.querySelector("#systemMessage").value.trim() || "未填寫事件內容"
-  });
-  saveState();
-  systemLogForm.reset();
-  systemTime.value = "2026-04-25T09:30";
-  renderAll();
-});
-
-document.addEventListener("change", (event) => {
+document.addEventListener("change", async (event) => {
   const taskId = event.target.dataset.taskId;
   if (taskId) {
     const task = state.tasks.find((item) => item.id === Number(taskId));
+    if (!task) return;
     task.done = event.target.checked;
-    saveState();
+    try {
+      await persistState();
+      renderAll();
+    } catch (error) {
+      alert(`待辦更新失敗：${error.message}`);
+    }
+    return;
+  }
+
+  const calendarTaskKey = event.target.dataset.calendarTaskKey;
+  if (!calendarTaskKey) return;
+  const existing = state.tasks.find((item) => item.source === "calendar" && item.calendarKey === calendarTaskKey);
+  if (existing) {
+    existing.done = event.target.checked;
+  } else {
+    state.tasks.push({
+      id: getNextTaskId(),
+      text: event.target.dataset.calendarTaskTitle || "未命名行事曆項目",
+      done: event.target.checked,
+      source: "calendar",
+      date: event.target.dataset.calendarTaskDate || getTodayKey(),
+      calendarType: event.target.dataset.calendarTaskType || "排程",
+      calendarKey: calendarTaskKey
+    });
+  }
+  try {
+    await persistState();
     renderAll();
+  } catch (error) {
+    alert(`待辦更新失敗：${error.message}`);
   }
 });
 
-document.addEventListener("input", (event) => {
+document.addEventListener("click", async (event) => {
+  const reportButton = event.target.closest("button[data-report-action]");
+  if (reportButton) {
+    const targetPage = reportButton.dataset.reportAction;
+    if (targetPage) {
+      showPage(targetPage, true);
+    }
+    return;
+  }
+
+  const taskDeleteButton = event.target.closest("button[data-task-action='delete']");
+  if (taskDeleteButton) {
+    const taskId = Number(taskDeleteButton.dataset.taskId);
+    if (!Number.isInteger(taskId)) return;
+    state.tasks = state.tasks.filter((task) => task.id !== taskId);
+    try {
+      await persistState();
+      renderAll();
+    } catch (error) {
+      alert(`待辦刪除失敗：${error.message}`);
+    }
+    return;
+  }
+
+  const calendarDeleteButton = event.target.closest("button[data-calendar-action='delete']");
+  if (calendarDeleteButton) {
+    const date = calendarDeleteButton.dataset.calendarDate;
+    const index = Number(calendarDeleteButton.dataset.calendarIndex);
+    const events = state.calendarEvents[date];
+    if (!date || !Array.isArray(events) || !Number.isInteger(index) || !events[index]) {
+      return;
+    }
+    events.splice(index, 1);
+    if (!events.length) {
+      delete state.calendarEvents[date];
+    }
+    try {
+      await persistState();
+      renderAll();
+    } catch (error) {
+      alert(`行事曆刪除失敗：${error.message}`);
+    }
+    return;
+  }
+
+  const dailyPageButton = event.target.closest("button[data-daily-page-action]");
+  if (dailyPageButton) {
+    const action = dailyPageButton.dataset.dailyPageAction;
+    if (action === "toggle") {
+      dailyLogExpandedView = !dailyLogExpandedView;
+      dailyLogPage = 0;
+    }
+    if (action === "prev" && dailyLogPage > 0) {
+      dailyLogPage -= 1;
+    }
+    if (action === "next") {
+      dailyLogPage += 1;
+    }
+    renderDailyLogs();
+    return;
+  }
+  const systemPageButton = event.target.closest("button[data-system-page-action]");
+  if (systemPageButton) {
+    const action = systemPageButton.dataset.systemPageAction;
+    if (action === "toggle") {
+      systemLogExpandedView = !systemLogExpandedView;
+      systemLogPage = 0;
+    }
+    if (action === "prev" && systemLogPage > 0) {
+      systemLogPage -= 1;
+    }
+    if (action === "next") {
+      systemLogPage += 1;
+    }
+    renderSystemLogs();
+    return;
+  }
+  const button = event.target.closest("button[data-progress-action]");
+  if (!button) return;
+  const index = Number(button.dataset.progressIndex);
+  if (!Number.isInteger(index) || !state.progress[index]) return;
+
+  if (button.dataset.progressAction === "delete") {
+    state.progress.splice(index, 1);
+  }
+
+  if (button.dataset.progressAction === "step") {
+    const step = Number(button.dataset.progressStep || "0");
+    state.progress[index].value = clampProgressValue(state.progress[index].value + step);
+  }
+
+  try {
+    await persistState();
+    renderAll();
+  } catch (error) {
+    alert(`進度更新失敗：${error.message}`);
+  }
+});
+
+document.addEventListener("input", async (event) => {
   const progressIndex = event.target.dataset.progressIndex;
-  if (progressIndex !== undefined) {
-    state.progress[Number(progressIndex)].value = Number(event.target.value);
-    saveState();
+  if (progressIndex === undefined) return;
+  state.progress[Number(progressIndex)].value = clampProgressValue(Number(event.target.value));
+  try {
+    await persistState();
     renderAll();
+  } catch (error) {
+    alert(`進度更新失敗：${error.message}`);
   }
 });
 
-document.querySelector("#resetBtn").addEventListener("click", () => {
-  state = structuredClone(defaultState);
-  saveState();
-  renderAll();
+document.querySelector("#resetBtn").addEventListener("click", async () => {
+  state = normalizeState(defaultState);
+  currentMonth = new Date(2026, 3, 1);
+  try {
+    await persistState();
+    renderAll();
+  } catch (error) {
+    alert(`重設失敗：${error.message}`);
+  }
 });
 
 function exportData() {
@@ -352,12 +815,10 @@ document.querySelector("#exportBtnSecondary").addEventListener("click", exportDa
 document.querySelector("#importInput").addEventListener("change", async (event) => {
   const [file] = event.target.files;
   if (!file) return;
-
   try {
-    const imported = JSON.parse(await file.text());
-    validateImportedState(imported);
+    const imported = normalizeState(JSON.parse(await file.text()));
     state = imported;
-    saveState();
+    await persistState();
     renderAll();
     alert("備份資料已匯入。");
   } catch (error) {
@@ -378,17 +839,109 @@ window.addEventListener("hashchange", () => {
   showPage(getPageFromHash(), false);
 });
 
-function formatDateTime(value) {
-  return value.replace("T", " ");
+if (refreshWeatherBtn) {
+  refreshWeatherBtn.addEventListener("click", () => {
+    renderWeatherAlerts(true);
+  });
 }
 
-function validateImportedState(imported) {
-  const requiredArrays = ["dailyLogs", "systemLogs", "tasks", "progress"];
-  const hasArrays = requiredArrays.every((key) => Array.isArray(imported[key]));
-  const hasCalendar = imported.calendarEvents && typeof imported.calendarEvents === "object";
-  if (!hasArrays || !hasCalendar) {
-    throw new Error("檔案格式不符合管理網站備份資料。");
+if (prevMonthBtn) {
+  prevMonthBtn.addEventListener("click", () => {
+    currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
+    renderCalendar();
+  });
+}
+
+if (nextMonthBtn) {
+  nextMonthBtn.addEventListener("click", () => {
+    currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+    renderCalendar();
+  });
+}
+
+async function renderWeatherAlerts(forceRefresh = false) {
+  const list = document.querySelector("#weatherAlertList");
+  const updated = document.querySelector("#weatherAlertUpdated");
+  if (!list || !updated || !weatherSummary) return;
+
+  try {
+    if (refreshWeatherBtn) {
+      refreshWeatherBtn.disabled = true;
+      refreshWeatherBtn.textContent = "更新中";
+    }
+    const response = await fetch(apiUrl(`weather-alerts${forceRefresh ? "?refresh=1" : ""}`));
+    if (!response.ok) {
+      throw new Error("本機氣象服務沒有回應，請確認已執行「啟動本機管理網站.bat」。");
+    }
+    const payload = await response.json();
+      updated.textContent = `${payload.location || "鳳山區"} · ${formatDateTime((payload.updatedAt || "").slice(0, 16))}`;
+      renderWeatherSummary(payload);
+      renderCriticalAlert(payload);
+
+      if (payload.status === "error") {
+        list.innerHTML = "";
+        list.classList.add("hidden");
+        return;
+      }
+
+      if (!payload.alerts.length) {
+        list.innerHTML = "";
+        list.classList.add("hidden");
+        return;
+      }
+
+      list.classList.remove("hidden");
+      list.innerHTML = payload.alerts.map((alert) => `
+        <article class="weather-alert-card ${escapeHtml(alert.severity)}">
+          <span class="weather-level">${escapeHtml(alert.level)}</span>
+          <strong>${escapeHtml(alert.title)}</strong>
+          <p>${escapeHtml(alert.description)}</p>
+        <small>${formatAlertTime(alert.startTime, alert.endTime)}</small>
+      </article>
+    `).join("");
+  } catch (error) {
+    updated.textContent = "無法更新";
+    const fallbackPayload = {
+      level: "連線提醒",
+      headline: "氣象特報讀取失敗",
+      message: error.message,
+      guidance: "請確認本機管理網站已啟動，且這台電腦可連到中央氣象署開放資料平台。",
+      severity: "medium"
+      };
+      renderWeatherSummary(fallbackPayload);
+      renderCriticalAlert(fallbackPayload);
+      list.innerHTML = "";
+      list.classList.add("hidden");
+    } finally {
+      if (refreshWeatherBtn) {
+        refreshWeatherBtn.disabled = false;
+        refreshWeatherBtn.textContent = "更新";
+      }
   }
+}
+
+function renderWeatherSummary(payload) {
+  weatherSummary.innerHTML = `
+    <article class="weather-summary-card ${escapeHtml(payload.severity || "clear")}">
+      <span class="weather-level">${escapeHtml(payload.level || "正常")}</span>
+      <strong>${escapeHtml(payload.headline || "目前無警特報")}</strong>
+      <p>${escapeHtml(payload.message || "維持例行巡檢與資料登錄。")}</p>
+    </article>
+  `;
+}
+
+function renderCriticalAlert(payload) {
+  const banner = document.querySelector("#criticalAlertBanner");
+  const title = document.querySelector("#criticalAlertTitle");
+  const message = document.querySelector("#criticalAlertMessage");
+  if (!banner || !title || !message) return;
+  const severeState = ["critical", "high"].includes(payload.severity);
+  banner.classList.toggle("hidden", !severeState);
+  banner.classList.toggle("critical", payload.severity === "critical");
+  banner.classList.toggle("high", payload.severity === "high");
+  if (!severeState) return;
+  title.textContent = payload.headline || "嚴重天氣警示";
+  message.textContent = payload.guidance || payload.message || "請提高管理警戒並重新安排今日作業。";
 }
 
 async function getDataFiles() {
@@ -426,10 +979,48 @@ async function renderDataFiles() {
   }
 }
 
+function formatDateTime(value) {
+  return String(value).replace("T", " ");
+}
+
+function formatAlertTime(startTime, endTime) {
+  if (startTime && endTime) return `${escapeHtml(startTime)} 至 ${escapeHtml(endTime)}`;
+  if (startTime) return `生效時間：${escapeHtml(startTime)}`;
+  return "請留意中央氣象署最新更新。";
+}
+
 function formatFileSize(size) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function clampProgressValue(value) {
+  return Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
+}
+
+function formatDateKey(year, month, day) {
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function formatDateInput(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function getTodayKey() {
+  return formatDateInput(new Date());
+}
+
+function formatDateTimeLocalInput(date) {
+  return `${formatDateInput(date)}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function getNextTaskId() {
+  return state.tasks.reduce((maxId, task) => Math.max(maxId, Number(task.id) || 0), 0) + 1;
+}
+
+function buildCalendarTaskKey(date, title, type) {
+  return `${date}__${type}__${title}`;
 }
 
 function apiUrl(path) {
@@ -443,17 +1034,16 @@ function getPageFromHash() {
 
 function showPage(pageId, updateHash) {
   document.querySelectorAll(".page").forEach((page) => {
-    page.classList.toggle("active-page", page.dataset.page === pageId);
+    const isActive = page.dataset.page === pageId;
+    page.classList.toggle("active-page", isActive);
+    page.hidden = !isActive;
   });
-
   document.querySelectorAll(".nav a").forEach((link) => {
     link.classList.toggle("active", link.getAttribute("href") === `#${pageId}`);
   });
-
   if (updateHash && window.location.hash !== `#${pageId}`) {
     history.pushState(null, "", `#${pageId}`);
   }
-
   window.scrollTo({ top: 0, behavior: "auto" });
 }
 
@@ -466,5 +1056,4 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-renderAll();
-showPage(getPageFromHash(), false);
+initApp();

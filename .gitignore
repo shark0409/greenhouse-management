@@ -1,4 +1,5 @@
 *.zip
+cwa_config.json
 .DS_Store
 Thumbs.db
 __pycache__/
