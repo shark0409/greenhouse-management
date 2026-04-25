@@ -22,7 +22,7 @@
         <a href="#system-log">重要系統日誌</a>
         <a href="#calendar">行事曆</a>
         <a href="#progress">進度追蹤</a>
-        <a href="#reports">成果圖表</a>
+        <a href="#reports">管理文件</a>
       </nav>
       <div class="operator-card">
         <span>今日值班</span>
@@ -43,47 +43,42 @@
         </div>
       </header>
 
-      <section id="overview" class="section">
+      <section id="overview" class="section admin-hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Manager Workspace</p>
+          <h2>管理者工作台</h2>
+          <p>集中處理日誌、排程、專案進度與重要事件，環境監控資料已移至專用監控系統。</p>
+        </div>
         <div class="metric-grid">
           <article class="metric">
-            <span>棚內溫度</span>
-            <strong>31.8°C</strong>
-            <small class="status-good">較昨日 -1.4°C</small>
+            <span>今日待辦</span>
+            <strong id="metricTasks">0</strong>
+            <small class="status-watch">需要管理者確認</small>
           </article>
           <article class="metric">
-            <span>空氣濕度</span>
-            <strong>68%</strong>
-            <small class="status-watch">接近通風門檻</small>
+            <span>管理日誌</span>
+            <strong id="metricDailyLogs">0</strong>
+            <small class="status-good">已建立紀錄</small>
           </article>
           <article class="metric">
-            <span>土壤濕度</span>
-            <strong>42%</strong>
-            <small class="status-good">灌溉正常</small>
+            <span>重要事件</span>
+            <strong id="metricSystemLogs">0</strong>
+            <small class="status-alert">需定期追蹤</small>
           </article>
           <article class="metric">
-            <span>設備在線</span>
-            <strong>12/13</strong>
-            <small class="status-alert">1 組風扇待檢</small>
+            <span>平均進度</span>
+            <strong id="metricProgress">0%</strong>
+            <small class="status-good">專案執行狀態</small>
           </article>
         </div>
 
-        <div class="overview-grid">
-          <section class="panel sensor-panel">
+        <div class="manager-grid">
+          <section class="panel">
             <div class="panel-heading">
-              <h2>環境曲線</h2>
-              <span>近 24 小時</span>
+              <h2>近期管理日誌</h2>
+              <span>最新 3 筆</span>
             </div>
-            <div class="chart" aria-label="溫度與濕度趨勢圖">
-              <div class="chart-grid"></div>
-              <svg viewBox="0 0 720 260" role="img">
-                <polyline class="temp-line" points="0,150 80,132 160,118 240,94 320,72 400,82 480,112 560,138 640,146 720,126"></polyline>
-                <polyline class="humidity-line" points="0,92 80,104 160,120 240,142 320,168 400,158 480,132 560,110 640,96 720,108"></polyline>
-              </svg>
-              <div class="legend">
-                <span><i class="temp-dot"></i>溫度</span>
-                <span><i class="humidity-dot"></i>濕度</span>
-              </div>
-            </div>
+            <div class="summary-list" id="recentDailyLogs"></div>
           </section>
 
           <section class="panel">
@@ -92,6 +87,22 @@
               <span id="todayTaskCount">0 項</span>
             </div>
             <div class="todo-list" id="todayTasks"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>近期排程</h2>
+              <span>本月重點</span>
+            </div>
+            <div class="summary-list" id="upcomingEvents"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>專案進度</h2>
+              <span>管理摘要</span>
+            </div>
+            <div class="summary-list" id="progressSnapshot"></div>
           </section>
         </div>
       </section>
@@ -139,7 +150,7 @@
         <div class="panel">
           <div class="panel-heading">
             <h2>新增重要系統日誌</h2>
-            <span>感測器、風扇、灌溉、告警</span>
+            <span>系統、排程、權限、告警</span>
           </div>
           <form id="systemLogForm" class="form-grid">
             <label>時間<input type="datetime-local" id="systemTime" required></label>
@@ -151,7 +162,7 @@
                 <option>嚴重</option>
               </select>
             </label>
-            <label class="full">事件<input type="text" id="systemMessage" placeholder="例：南側風扇轉速異常"></label>
+            <label class="full">事件<input type="text" id="systemMessage" placeholder="例：本週巡檢表單已完成審核"></label>
             <button class="primary-button full" type="submit">新增系統日誌</button>
           </form>
         </div>
@@ -187,22 +198,28 @@
       <section id="reports" class="section">
         <div class="panel">
           <div class="panel-heading">
-            <h2>成果圖表</h2>
-            <span>連結現有智慧溫室分析成果</span>
+            <h2>管理文件</h2>
+            <span>報告、備份、稽核資料</span>
           </div>
-          <div class="report-grid">
-            <figure>
-              <img src="assets/temp_humidity_0423.png" alt="0423 溫濕度變化圖">
-              <figcaption>0423 溫濕度變化</figcaption>
-            </figure>
-            <figure>
-              <img src="assets/soil_moisture_0423.png" alt="0423 土壤濕度與溫度圖">
-              <figcaption>0423 土壤濕度與溫度</figcaption>
-            </figure>
-            <figure>
-              <img src="assets/four_group_hourly_air_temperature.png" alt="四組風扇溫度比較圖">
-              <figcaption>四組風扇溫度比較</figcaption>
-            </figure>
+          <div class="document-grid">
+            <article class="document-card">
+              <span class="document-icon">01</span>
+              <strong>每日管理日誌彙整</strong>
+              <p>檢視巡檢、灌溉、施肥、採收與維護紀錄，作為每週會議與交接依據。</p>
+              <button class="icon-button" type="button">查看摘要</button>
+            </article>
+            <article class="document-card">
+              <span class="document-icon">02</span>
+              <strong>作業排程與人員分工</strong>
+              <p>整理本月行事曆、責任人、預定完成日與尚未確認的管理事項。</p>
+              <button class="icon-button" type="button">查看排程</button>
+            </article>
+            <article class="document-card">
+              <span class="document-icon">03</span>
+              <strong>資料備份與稽核紀錄</strong>
+              <p>匯出目前管理資料，保留版本紀錄，方便後續同步到雲端資料庫。</p>
+              <button class="icon-button" id="exportBtnSecondary" type="button">匯出資料</button>
+            </article>
           </div>
         </div>
       </section>
