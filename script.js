@@ -170,8 +170,8 @@ function renderOverview() {
 function renderCalendar() {
   const grid = document.querySelector("#calendarGrid");
   const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
-  const headers = weekdays.map((day) => `<div class="calendar-day"><strong>週${day}</strong></div>`);
-  const blanks = Array.from({ length: 3 }, () => `<div class="calendar-day" aria-hidden="true"></div>`);
+  const headers = weekdays.map((day) => `<div class="calendar-weekday">週${day}</div>`);
+  const blanks = Array.from({ length: 3 }, () => `<div class="calendar-day calendar-empty" aria-hidden="true"></div>`);
   const days = Array.from({ length: 30 }, (_, index) => {
     const day = index + 1;
     const events = state.calendarEvents[day] || [];
