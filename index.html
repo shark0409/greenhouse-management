@@ -23,6 +23,28 @@
         <a href="#progress">進度追蹤</a>
         <a href="#reports">管理文件</a>
       </nav>
+      <section class="sidebar-weather" aria-label="側欄天氣特報">
+        <div class="sidebar-weather-header">
+          <div>
+            <strong>鳳山區天氣</strong>
+            <span id="weatherAlertUpdated">等待更新</span>
+          </div>
+          <button class="icon-button compact-button" id="refreshWeatherBtn" type="button">更新</button>
+        </div>
+        <div class="sidebar-weather-summary" id="weatherAlertSummary">
+          <article class="weather-summary-card clear">
+            <span class="weather-level">正常</span>
+            <strong>目前無警特報</strong>
+            <p>正在讀取中央氣象署開放資料平台。</p>
+          </article>
+        </div>
+        <div class="sidebar-weather-list" id="weatherAlertList">
+          <article class="weather-alert-card watch">
+            <strong>讀取中</strong>
+            <p>正在讀取中央氣象署開放資料平台。</p>
+          </article>
+        </div>
+      </section>
       <div class="operator-card">
         <span>今日值班</span>
         <strong>溫室管理員</strong>
@@ -36,19 +58,11 @@
           <p class="eyebrow">Local Management Console</p>
           <h1>智慧溫室農場管理</h1>
         </div>
-        <div class="top-actions">
-          <button class="icon-button" id="exportBtn" title="匯出目前資料">匯出</button>
-          <label class="import-button" title="匯入先前匯出的備份">
-            匯入
-            <input type="file" id="importInput" accept="application/json,.json">
-          </label>
-          <button class="primary-button" id="resetBtn">重設範例資料</button>
-        </div>
       </header>
 
       <section class="section local-notice" aria-label="本機儲存提醒">
         <strong>本機管理版</strong>
-        <span>所有新增與修改的資料只儲存在這台裝置的瀏覽器，不會上傳到雲端，也不會與其他手機或電腦同步。定期匯出備份可避免資料遺失。</span>
+        <span>日誌、系統事件、行事曆與進度會寫入本機資料庫資料夾，Excel / CSV 也會一併保存；不會上傳雲端，也不會與其他手機或電腦同步。定期匯出備份可避免資料遺失。</span>
       </section>
 
       <section id="overview" class="section page active-page admin-hero" data-page="overview">
@@ -81,6 +95,14 @@
             <strong>匯出備份</strong>
           </div>
         </div>
+
+        <section class="critical-alert-banner hidden" id="criticalAlertBanner" aria-label="嚴重天氣警示">
+          <div>
+            <p class="eyebrow">Critical Weather Alert</p>
+            <h2 id="criticalAlertTitle">嚴重天氣警示</h2>
+          </div>
+          <p id="criticalAlertMessage">目前無需提高警戒的天氣事件。</p>
+        </section>
 
         <div class="metric-grid">
           <article class="metric">
@@ -150,7 +172,21 @@
         </div>
       </section>
 
-      <section id="daily-log" class="section page two-column" data-page="daily-log">
+      <section id="daily-log" class="section page two-column" data-page="daily-log" hidden>
+        <div class="panel full-panel">
+          <div class="panel-heading">
+            <h2>資料管理</h2>
+            <span>匯出、匯入、重設</span>
+          </div>
+          <div class="top-actions page-actions">
+            <button class="icon-button" id="exportBtn" title="匯出目前資料" type="button">匯出</button>
+            <label class="import-button" title="匯入先前匯出的備份">
+              匯入
+              <input type="file" id="importInput" accept="application/json,.json">
+            </label>
+            <button class="primary-button" id="resetBtn" type="button">重設範例資料</button>
+          </div>
+        </div>
         <div class="panel">
           <div class="panel-heading">
             <h2>新增每日管理日誌</h2>
@@ -186,6 +222,7 @@
             <span id="dailyLogCount">0 筆</span>
           </div>
           <div class="feed" id="dailyLogList"></div>
+          <div class="feed-pagination" id="dailyLogPagination"></div>
         </div>
         <div class="panel">
           <div class="panel-heading">
@@ -231,27 +268,68 @@
         </div>
       </section>
 
-      <section id="calendar" class="section page" data-page="calendar">
-        <div class="panel">
+      <section id="calendar" class="section page" data-page="calendar" hidden>
+        <div class="calendar-layout">
           <div class="panel-heading">
-            <h2>四月行事曆</h2>
-            <span>作業排程與實驗節點</span>
+            <h2 id="calendarTitle">行事曆</h2>
+            <div class="calendar-nav">
+              <button class="icon-button compact-button" id="prevMonthBtn" type="button">上月</button>
+              <span id="calendarMonthLabel">2026 年 4 月</span>
+              <button class="icon-button compact-button" id="nextMonthBtn" type="button">下月</button>
+            </div>
           </div>
-          <div class="calendar-grid" id="calendarGrid"></div>
+          <section class="panel">
+            <div class="calendar-grid" id="calendarGrid"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>新增行事曆</h2>
+              <span>排程、會議、提醒</span>
+            </div>
+            <form id="calendarEventForm" class="form-grid">
+              <label>日期<input type="date" id="calendarEventDate" required></label>
+              <label>類型
+                <select id="calendarEventType">
+                  <option>排程</option>
+                  <option>提醒</option>
+                  <option>會議</option>
+                  <option>維護</option>
+                </select>
+              </label>
+              <label class="full">標題<input type="text" id="calendarEventTitle" placeholder="例：每週巡檢安排" required></label>
+              <label class="full">備註<textarea id="calendarEventNote" rows="4" placeholder="可記錄負責人、準備事項、注意重點"></textarea></label>
+              <button class="primary-button full" type="submit">新增行事曆</button>
+            </form>
+          </section>
         </div>
       </section>
 
-      <section id="progress" class="section page" data-page="progress">
-        <div class="panel">
-          <div class="panel-heading">
-            <h2>進度追蹤</h2>
-            <span>拖曳滑桿更新完成度</span>
-          </div>
-          <div class="progress-list" id="progressList"></div>
+      <section id="progress" class="section page" data-page="progress" hidden>
+        <div class="progress-layout">
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>新增進度項目</h2>
+              <span>可新增、刪除、調整</span>
+            </div>
+            <form id="progressForm" class="form-grid">
+              <label class="full">項目名稱<input type="text" id="progressName" placeholder="例：感測資料匯整" required></label>
+              <label>初始進度<input type="number" id="progressValue" min="0" max="100" value="0" required></label>
+              <div class="progress-form-actions">
+                <button class="primary-button" type="submit">新增進度項目</button>
+              </div>
+            </form>
+          </section>
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>進度追蹤</h2>
+              <span>滑桿或按鈕更新完成度</span>
+            </div>
+            <div class="progress-list" id="progressList"></div>
+          </section>
         </div>
       </section>
 
-      <section id="reports" class="section page" data-page="reports">
+      <section id="reports" class="section page" data-page="reports" hidden>
         <div class="panel">
           <div class="panel-heading">
             <h2>管理文件</h2>
