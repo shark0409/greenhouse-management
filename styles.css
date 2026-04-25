@@ -249,6 +249,10 @@ h2 {
   display: grid;
 }
 
+.full-panel {
+  grid-column: 1 / -1;
+}
+
 .local-notice {
   display: flex;
   align-items: center;
@@ -539,6 +543,13 @@ h2 {
   gap: 12px;
 }
 
+.file-form {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(220px, 1fr) minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
 label {
   display: grid;
   gap: 7px;
@@ -555,6 +566,10 @@ textarea {
   color: var(--text);
   background: #fff;
   transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.file-picker input {
+  padding: 8px 10px;
 }
 
 input:focus,
@@ -577,6 +592,57 @@ textarea {
 .timeline-item,
 .progress-item {
   padding: 14px;
+}
+
+.storage-note {
+  margin: 12px 0 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.file-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.file-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfb;
+}
+
+.file-item strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.file-meta {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.file-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.danger-button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid #e0b8b2;
+  border-radius: 8px;
+  background: #fff7f6;
+  color: var(--red);
+}
+
+.danger-button:hover {
+  background: #ffecea;
 }
 
 .item-top {
@@ -792,7 +858,8 @@ figcaption {
   }
 
   .top-actions,
-  .form-grid {
+  .form-grid,
+  .file-form {
     width: 100%;
     grid-template-columns: 1fr;
   }

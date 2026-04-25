@@ -1,4 +1,6 @@
 const storageKey = "greenhouse-management-v2";
+const fileDbName = "greenhouse-management-files";
+const fileStoreName = "sensor-files";
 
 const defaultState = {
   dailyLogs: [
@@ -51,7 +53,7 @@ const defaultState = {
     18: ["0418 合併資料檢核"],
     21: ["感測測試資料檢核"],
     23: ["0423 作業資料歸檔"],
-    25: ["例行巡檢", "系統日誌整理"],
+    25: ["系統日誌整理"],
     28: ["灌溉策略檢討"]
   }
 };
@@ -59,11 +61,14 @@ const defaultState = {
 let state = migrateState(loadState());
 
 const dailyLogForm = document.querySelector("#dailyLogForm");
+const dataFileForm = document.querySelector("#dataFileForm");
 const systemLogForm = document.querySelector("#systemLogForm");
 const dailyDate = document.querySelector("#dailyDate");
+const dataFileDate = document.querySelector("#dataFileDate");
 const systemTime = document.querySelector("#systemTime");
 
 dailyDate.value = "2026-04-25";
+dataFileDate.value = "2026-04-25";
 systemTime.value = "2026-04-25T09:30";
 
 function loadState() {
@@ -89,6 +94,9 @@ function migrateState(currentState) {
       return { ...item, name: "實驗室電腦搬移準備" };
     }
     return item;
+  });
+  Object.keys(currentState.calendarEvents).forEach((day) => {
+    currentState.calendarEvents[day] = currentState.calendarEvents[day].filter((event) => event !== "例行巡檢");
   });
   saveMigratedState(currentState);
   return currentState;
@@ -193,7 +201,7 @@ function renderCalendar() {
   const blanks = Array.from({ length: 3 }, () => `<div class="calendar-day calendar-empty" aria-hidden="true"></div>`);
   const days = Array.from({ length: 30 }, (_, index) => {
     const day = index + 1;
-    const events = state.calendarEvents[day] || [];
+    const events = ["巡檢", ...(state.calendarEvents[day] || [])];
     return `
       <div class="calendar-day">
         <strong>4/${day}</strong>
@@ -225,6 +233,7 @@ function renderAll() {
   renderOverview();
   renderCalendar();
   renderProgress();
+  renderDataFiles();
 }
 
 dailyLogForm.addEventListener("submit", (event) => {
@@ -240,6 +249,47 @@ dailyLogForm.addEventListener("submit", (event) => {
   dailyLogForm.reset();
   dailyDate.value = "2026-04-25";
   renderAll();
+});
+
+dataFileForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const fileInput = document.querySelector("#dataFileInput");
+  const [file] = fileInput.files;
+  if (!file) return;
+
+  try {
+    await saveDataFile({
+      id: createFileId(),
+      date: dataFileDate.value,
+      name: file.name,
+      type: file.type || "application/octet-stream",
+      size: file.size,
+      note: document.querySelector("#dataFileNote").value.trim(),
+      createdAt: new Date().toISOString(),
+      file
+    });
+    dataFileForm.reset();
+    dataFileDate.value = dailyDate.value;
+    await renderDataFiles();
+  } catch (error) {
+    alert(`檔案儲存失敗：${error.message}`);
+  }
+});
+
+document.querySelector("#dataFileList").addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-file-action]");
+  if (!button) return;
+
+  const id = button.dataset.fileId;
+  if (button.dataset.fileAction === "download") {
+    await downloadDataFile(id);
+  }
+
+  if (button.dataset.fileAction === "delete") {
+    if (!confirm("確定要刪除此檔案？")) return;
+    await deleteDataFile(id);
+    await renderDataFiles();
+  }
 });
 
 systemLogForm.addEventListener("submit", (event) => {
@@ -333,6 +383,135 @@ function validateImportedState(imported) {
   if (!hasArrays || !hasCalendar) {
     throw new Error("檔案格式不符合管理網站備份資料。");
   }
+}
+
+function openFileDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(fileDbName, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(fileStoreName)) {
+        const store = db.createObjectStore(fileStoreName, { keyPath: "id" });
+        store.createIndex("date", "date");
+        store.createIndex("createdAt", "createdAt");
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function saveDataFile(record) {
+  const db = await openFileDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(fileStoreName, "readwrite");
+    transaction.objectStore(fileStoreName).put(record);
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+  });
+}
+
+async function getDataFiles() {
+  const db = await openFileDb();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(fileStoreName, "readonly").objectStore(fileStoreName).getAll();
+    request.onsuccess = () => {
+      db.close();
+      resolve(request.result.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)));
+    };
+    request.onerror = () => {
+      db.close();
+      reject(request.error);
+    };
+  });
+}
+
+async function getDataFile(id) {
+  const db = await openFileDb();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(fileStoreName, "readonly").objectStore(fileStoreName).get(id);
+    request.onsuccess = () => {
+      db.close();
+      resolve(request.result);
+    };
+    request.onerror = () => {
+      db.close();
+      reject(request.error);
+    };
+  });
+}
+
+async function deleteDataFile(id) {
+  const db = await openFileDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(fileStoreName, "readwrite");
+    transaction.objectStore(fileStoreName).delete(id);
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error);
+    };
+  });
+}
+
+async function downloadDataFile(id) {
+  const record = await getDataFile(id);
+  if (!record) return;
+  const url = URL.createObjectURL(record.file);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = record.name;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function renderDataFiles() {
+  const list = document.querySelector("#dataFileList");
+  try {
+    const files = await getDataFiles();
+    if (!files.length) {
+      list.innerHTML = `<div class="summary-item"><span>尚未匯入 Excel 或 CSV 檔案。</span></div>`;
+      return;
+    }
+    list.innerHTML = files.map((file) => `
+      <article class="file-item">
+        <div>
+          <strong>${escapeHtml(file.date)} ${escapeHtml(file.name)}</strong>
+          <div class="file-meta">
+            ${formatFileSize(file.size)} · ${escapeHtml(file.note || "無備註")} · 匯入時間 ${formatDateTime(file.createdAt.slice(0, 16))}
+          </div>
+        </div>
+        <div class="file-actions">
+          <button class="icon-button" type="button" data-file-action="download" data-file-id="${escapeHtml(file.id)}">下載</button>
+          <button class="danger-button" type="button" data-file-action="delete" data-file-id="${escapeHtml(file.id)}">刪除</button>
+        </div>
+      </article>
+    `).join("");
+  } catch (error) {
+    list.innerHTML = `<div class="summary-item"><span>檔案清單讀取失敗：${escapeHtml(error.message)}</span></div>`;
+  }
+}
+
+function formatFileSize(size) {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function createFileId() {
+  const randomId = globalThis.crypto?.randomUUID
+    ? globalThis.crypto.randomUUID()
+    : Math.random().toString(16).slice(2);
+  return `${Date.now()}-${randomId}`;
 }
 
 function getPageFromHash() {
