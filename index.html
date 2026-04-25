@@ -39,15 +39,24 @@
         </div>
         <div class="top-actions">
           <button class="icon-button" id="exportBtn" title="匯出目前資料">匯出</button>
+          <label class="import-button" title="匯入先前匯出的備份">
+            匯入
+            <input type="file" id="importInput" accept="application/json,.json">
+          </label>
           <button class="primary-button" id="resetBtn">重設範例資料</button>
         </div>
       </header>
+
+      <section class="section local-notice" aria-label="本機儲存提醒">
+        <strong>本機管理版</strong>
+        <span>所有新增與修改的資料只儲存在這台裝置的瀏覽器，不會上傳到雲端，也不會與其他手機或電腦同步。定期匯出備份可避免資料遺失。</span>
+      </section>
 
       <section id="overview" class="section admin-hero">
         <div class="hero-copy">
           <p class="eyebrow">Manager Workspace</p>
           <h2>管理者工作台</h2>
-          <p>集中處理日誌、排程、專案進度與重要事件，環境監控資料已移至專用監控系統。</p>
+          <p>集中處理日誌、排程、專案進度與重要事件。此版本適合在固定管理電腦上填寫與保存資料。</p>
         </div>
         <div class="metric-grid">
           <article class="metric">
@@ -217,7 +226,7 @@
             <article class="document-card">
               <span class="document-icon">03</span>
               <strong>資料備份與稽核紀錄</strong>
-              <p>匯出目前管理資料，保留版本紀錄，方便後續同步到雲端資料庫。</p>
+              <p>匯出目前管理資料，保留版本紀錄；需要搬到另一台電腦時，可用匯入功能還原。</p>
               <button class="icon-button" id="exportBtnSecondary" type="button">匯出資料</button>
             </article>
           </div>

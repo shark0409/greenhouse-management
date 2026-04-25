@@ -274,6 +274,24 @@ function exportData() {
 document.querySelector("#exportBtn").addEventListener("click", exportData);
 document.querySelector("#exportBtnSecondary").addEventListener("click", exportData);
 
+document.querySelector("#importInput").addEventListener("change", async (event) => {
+  const [file] = event.target.files;
+  if (!file) return;
+
+  try {
+    const imported = JSON.parse(await file.text());
+    validateImportedState(imported);
+    state = imported;
+    saveState();
+    renderAll();
+    alert("備份資料已匯入。");
+  } catch (error) {
+    alert(`匯入失敗：${error.message}`);
+  } finally {
+    event.target.value = "";
+  }
+});
+
 document.querySelectorAll(".nav a").forEach((link) => {
   link.addEventListener("click", () => {
     document.querySelectorAll(".nav a").forEach((item) => item.classList.remove("active"));
@@ -283,6 +301,15 @@ document.querySelectorAll(".nav a").forEach((link) => {
 
 function formatDateTime(value) {
   return value.replace("T", " ");
+}
+
+function validateImportedState(imported) {
+  const requiredArrays = ["dailyLogs", "systemLogs", "tasks", "progress"];
+  const hasArrays = requiredArrays.every((key) => Array.isArray(imported[key]));
+  const hasCalendar = imported.calendarEvents && typeof imported.calendarEvents === "object";
+  if (!hasArrays || !hasCalendar) {
+    throw new Error("檔案格式不符合管理網站備份資料。");
+  }
 }
 
 function escapeHtml(value) {

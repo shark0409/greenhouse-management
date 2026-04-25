@@ -150,18 +150,21 @@ h2 {
 }
 
 .primary-button,
-.icon-button {
+.icon-button,
+.import-button {
   border: 1px solid transparent;
   border-radius: 8px;
   padding: 10px 14px;
 }
 
-.primary-button {
+.primary-button,
+.import-button {
   background: var(--green);
   color: #fff;
 }
 
-.primary-button:hover {
+.primary-button:hover,
+.import-button:hover {
   background: var(--green-dark);
 }
 
@@ -171,9 +174,44 @@ h2 {
   border-color: var(--line);
 }
 
+.import-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 41px;
+  cursor: pointer;
+}
+
+.import-button input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .section {
   margin-bottom: 28px;
   scroll-margin-top: 20px;
+}
+
+.local-notice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid #d9d0a7;
+  border-radius: 8px;
+  background: #fff8df;
+  color: #604a12;
+}
+
+.local-notice strong {
+  flex: 0 0 auto;
+}
+
+.local-notice span {
+  line-height: 1.65;
 }
 
 .admin-hero {
@@ -566,7 +604,8 @@ figcaption {
 
   .topbar,
   .panel-heading,
-  .item-top {
+  .item-top,
+  .local-notice {
     align-items: flex-start;
     flex-direction: column;
   }
