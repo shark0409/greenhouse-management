@@ -293,10 +293,14 @@ document.querySelector("#importInput").addEventListener("change", async (event) 
 });
 
 document.querySelectorAll(".nav a").forEach((link) => {
-  link.addEventListener("click", () => {
-    document.querySelectorAll(".nav a").forEach((item) => item.classList.remove("active"));
-    link.classList.add("active");
+  link.addEventListener("click", (event) => {
+    event.preventDefault();
+    showPage(link.getAttribute("href").replace("#", ""), true);
   });
+});
+
+window.addEventListener("hashchange", () => {
+  showPage(getPageFromHash(), false);
 });
 
 function formatDateTime(value) {
@@ -312,6 +316,27 @@ function validateImportedState(imported) {
   }
 }
 
+function getPageFromHash() {
+  const hash = window.location.hash.replace("#", "");
+  return document.querySelector(`[data-page="${hash}"]`) ? hash : "overview";
+}
+
+function showPage(pageId, updateHash) {
+  document.querySelectorAll(".page").forEach((page) => {
+    page.classList.toggle("active-page", page.dataset.page === pageId);
+  });
+
+  document.querySelectorAll(".nav a").forEach((link) => {
+    link.classList.toggle("active", link.getAttribute("href") === `#${pageId}`);
+  });
+
+  if (updateHash && window.location.hash !== `#${pageId}`) {
+    history.pushState(null, "", `#${pageId}`);
+  }
+
+  window.scrollTo({ top: 0, behavior: "auto" });
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -322,3 +347,4 @@ function escapeHtml(value) {
 }
 
 renderAll();
+showPage(getPageFromHash(), false);

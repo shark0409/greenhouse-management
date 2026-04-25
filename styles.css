@@ -19,10 +19,6 @@
   box-sizing: border-box;
 }
 
-html {
-  scroll-behavior: smooth;
-}
-
 body {
   margin: 0;
   color: var(--text);
@@ -192,7 +188,18 @@ h2 {
 
 .section {
   margin-bottom: 28px;
-  scroll-margin-top: 20px;
+}
+
+.page {
+  display: none;
+}
+
+.page.active-page {
+  display: block;
+}
+
+.page.two-column.active-page {
+  display: grid;
 }
 
 .local-notice {
