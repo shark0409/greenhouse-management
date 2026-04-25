@@ -191,7 +191,7 @@
         <div class="panel full-panel">
           <div class="panel-heading">
             <h2>當日感測資料匯入</h2>
-            <span>Excel / CSV 本機保存</span>
+            <span>Excel / CSV 存入本機資料庫</span>
           </div>
           <form id="dataFileForm" class="file-form">
             <label>資料日期<input type="date" id="dataFileDate" required></label>
@@ -201,7 +201,7 @@
             <label>備註<input type="text" id="dataFileNote" placeholder="例：上午感測器數據、土壤資料"></label>
             <button class="primary-button" type="submit">儲存檔案</button>
           </form>
-          <p class="storage-note">檔案會保存在此電腦瀏覽器，不會上傳雲端，也不包含在 JSON 備份中；搬到另一台電腦時請重新匯入檔案。</p>
+          <p class="storage-note">檔案會存入網站資料夾內的「本機資料庫」，並依副檔名與日期分類。請用「啟動本機管理網站.bat」開啟網站才能儲存檔案。</p>
           <div class="file-list" id="dataFileList"></div>
         </div>
       </section>

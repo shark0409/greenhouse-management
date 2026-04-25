@@ -1,6 +1,4 @@
 const storageKey = "greenhouse-management-v2";
-const fileDbName = "greenhouse-management-files";
-const fileStoreName = "sensor-files";
 
 const defaultState = {
   dailyLogs: [
@@ -258,16 +256,18 @@ dataFileForm.addEventListener("submit", async (event) => {
   if (!file) return;
 
   try {
-    await saveDataFile({
-      id: createFileId(),
-      date: dataFileDate.value,
-      name: file.name,
-      type: file.type || "application/octet-stream",
-      size: file.size,
-      note: document.querySelector("#dataFileNote").value.trim(),
-      createdAt: new Date().toISOString(),
-      file
+    const formData = new FormData();
+    formData.append("date", dataFileDate.value);
+    formData.append("note", document.querySelector("#dataFileNote").value.trim());
+    formData.append("file", file);
+    const response = await fetch("api/files", {
+      method: "POST",
+      body: formData
     });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error || "本機資料庫沒有回應。");
+    }
     dataFileForm.reset();
     dataFileDate.value = dailyDate.value;
     await renderDataFiles();
@@ -282,12 +282,17 @@ document.querySelector("#dataFileList").addEventListener("click", async (event) 
 
   const id = button.dataset.fileId;
   if (button.dataset.fileAction === "download") {
-    await downloadDataFile(id);
+    window.location.href = `api/files/${encodeURIComponent(id)}/download`;
   }
 
   if (button.dataset.fileAction === "delete") {
     if (!confirm("確定要刪除此檔案？")) return;
-    await deleteDataFile(id);
+    const response = await fetch(`api/files/${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      alert(`刪除失敗：${payload.error || "本機資料庫沒有回應。"}`);
+      return;
+    }
     await renderDataFiles();
   }
 });
@@ -385,93 +390,12 @@ function validateImportedState(imported) {
   }
 }
 
-function openFileDb() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(fileDbName, 1);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(fileStoreName)) {
-        const store = db.createObjectStore(fileStoreName, { keyPath: "id" });
-        store.createIndex("date", "date");
-        store.createIndex("createdAt", "createdAt");
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function saveDataFile(record) {
-  const db = await openFileDb();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(fileStoreName, "readwrite");
-    transaction.objectStore(fileStoreName).put(record);
-    transaction.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    transaction.onerror = () => {
-      db.close();
-      reject(transaction.error);
-    };
-  });
-}
-
 async function getDataFiles() {
-  const db = await openFileDb();
-  return new Promise((resolve, reject) => {
-    const request = db.transaction(fileStoreName, "readonly").objectStore(fileStoreName).getAll();
-    request.onsuccess = () => {
-      db.close();
-      resolve(request.result.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)));
-    };
-    request.onerror = () => {
-      db.close();
-      reject(request.error);
-    };
-  });
-}
-
-async function getDataFile(id) {
-  const db = await openFileDb();
-  return new Promise((resolve, reject) => {
-    const request = db.transaction(fileStoreName, "readonly").objectStore(fileStoreName).get(id);
-    request.onsuccess = () => {
-      db.close();
-      resolve(request.result);
-    };
-    request.onerror = () => {
-      db.close();
-      reject(request.error);
-    };
-  });
-}
-
-async function deleteDataFile(id) {
-  const db = await openFileDb();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(fileStoreName, "readwrite");
-    transaction.objectStore(fileStoreName).delete(id);
-    transaction.oncomplete = () => {
-      db.close();
-      resolve();
-    };
-    transaction.onerror = () => {
-      db.close();
-      reject(transaction.error);
-    };
-  });
-}
-
-async function downloadDataFile(id) {
-  const record = await getDataFile(id);
-  if (!record) return;
-  const url = URL.createObjectURL(record.file);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = record.name;
-  link.click();
-  URL.revokeObjectURL(url);
+  const response = await fetch("api/files");
+  if (!response.ok) {
+    throw new Error("請使用「啟動本機管理網站.bat」開啟網站，才能讀寫本機資料庫資料夾。");
+  }
+  return response.json();
 }
 
 async function renderDataFiles() {
@@ -505,13 +429,6 @@ function formatFileSize(size) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function createFileId() {
-  const randomId = globalThis.crypto?.randomUUID
-    ? globalThis.crypto.randomUUID()
-    : Math.random().toString(16).slice(2);
-  return `${Date.now()}-${randomId}`;
 }
 
 function getPageFromHash() {

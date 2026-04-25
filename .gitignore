@@ -1,3 +1,7 @@
 *.zip
 .DS_Store
 Thumbs.db
+__pycache__/
+*.pyc
+本機資料庫/*
+!本機資料庫/.gitkeep
