@@ -11,7 +11,7 @@
 - `script.js`
 - `assets/`
 
-部署時請上傳整個 `管理網站` 資料夾內的內容。
+使用或搬移時請保留整個 `管理網站` 資料夾內的內容。
 
 ## 本機使用
 
@@ -23,22 +23,13 @@
 - 按「匯入」可選擇先前匯出的 JSON 備份並還原資料。
 - 建議每天或每週匯出備份一次，放到隨身碟、NAS 或雲端硬碟。
 
-## GitHub Pages 部署
+## 搬到實驗室電腦
 
-1. 建立一個 GitHub repository，例如 `greenhouse-management`。
-2. 上傳本資料夾內所有檔案到 repository 根目錄。
-3. 到 repository 的 `Settings`。
-4. 進入 `Pages`。
-5. `Source` 選擇 `Deploy from a branch`。
-6. Branch 選擇 `main`，資料夾選擇 `/root`。
-7. 儲存後等待 GitHub 產生網址。
-
-## Netlify 部署
-
-1. 登入 Netlify。
-2. 選擇 `Add new site`。
-3. 可直接拖曳整個 `管理網站` 資料夾到 Netlify Deploys。
-4. 部署完成後會取得公開網址。
+1. 在目前電腦按「匯出」，保存一份 JSON 備份。
+2. 將整個 `管理網站` 資料夾複製到隨身碟或實驗室電腦。
+3. 在實驗室電腦用瀏覽器開啟 `index.html`。
+4. 如需沿用目前資料，按「匯入」選擇 JSON 備份。
+5. 之後固定在實驗室電腦使用，資料會保存在該電腦的瀏覽器。
 
 ## 資料儲存方式
 
