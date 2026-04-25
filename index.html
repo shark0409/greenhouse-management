@@ -64,32 +64,33 @@
         <div class="visual-grid">
           <section class="panel visual-panel">
             <div class="panel-heading">
-              <h2>溫室作業分區</h2>
-              <span>管理視圖</span>
+              <h2>單一溫室感測測試</h2>
+              <span>測試視圖</span>
             </div>
-            <div class="farm-map" aria-label="溫室作業分區管理狀態">
-              <div class="zone zone-ok">
-                <strong>A 區</strong>
-                <span>巡檢完成</span>
+            <div class="greenhouse-test-map" aria-label="單一溫室感測測試狀態">
+              <div class="greenhouse-unit">
+                <div class="greenhouse-roof"></div>
+                <div class="greenhouse-body">
+                  <strong>溫室 01</strong>
+                  <span>感測測試執行中</span>
+                </div>
               </div>
-              <div class="zone zone-watch">
-                <strong>B 區</strong>
-                <span>待補紀錄</span>
+              <div class="test-node node-active">
+                <strong>空氣溫濕度</strong>
+                <span>記錄中</span>
               </div>
-              <div class="zone zone-ok">
-                <strong>C 區</strong>
-                <span>排程正常</span>
+              <div class="test-node node-active">
+                <strong>土壤資料</strong>
+                <span>採集中</span>
               </div>
-              <div class="zone zone-alert">
-                <strong>D 區</strong>
-                <span>工單追蹤</span>
+              <div class="test-node node-watch">
+                <strong>資料匯出</strong>
+                <span>待確認</span>
               </div>
-              <div class="walkway">管理走道</div>
             </div>
             <div class="map-legend">
-              <span><i class="legend-ok"></i>完成</span>
+              <span><i class="legend-ok"></i>測試中</span>
               <span><i class="legend-watch"></i>待確認</span>
-              <span><i class="legend-alert"></i>需追蹤</span>
             </div>
           </section>
 
