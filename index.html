@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智慧溫室農場管理</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">GH</div>
+        <div>
+          <strong>智慧溫室</strong>
+          <span>Farm Ops</span>
+        </div>
+      </div>
+      <nav class="nav" aria-label="主要導覽">
+        <a href="#overview" class="active">總覽</a>
+        <a href="#daily-log">每日管理日誌</a>
+        <a href="#system-log">重要系統日誌</a>
+        <a href="#calendar">行事曆</a>
+        <a href="#progress">進度追蹤</a>
+        <a href="#reports">成果圖表</a>
+      </nav>
+      <div class="operator-card">
+        <span>今日值班</span>
+        <strong>溫室管理員</strong>
+        <small>2026/04/25 例行巡檢</small>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Greenhouse Operations Center</p>
+          <h1>智慧溫室農場管理</h1>
+        </div>
+        <div class="top-actions">
+          <button class="icon-button" id="exportBtn" title="匯出目前資料">匯出</button>
+          <button class="primary-button" id="resetBtn">重設範例資料</button>
+        </div>
+      </header>
+
+      <section id="overview" class="section">
+        <div class="metric-grid">
+          <article class="metric">
+            <span>棚內溫度</span>
+            <strong>31.8°C</strong>
+            <small class="status-good">較昨日 -1.4°C</small>
+          </article>
+          <article class="metric">
+            <span>空氣濕度</span>
+            <strong>68%</strong>
+            <small class="status-watch">接近通風門檻</small>
+          </article>
+          <article class="metric">
+            <span>土壤濕度</span>
+            <strong>42%</strong>
+            <small class="status-good">灌溉正常</small>
+          </article>
+          <article class="metric">
+            <span>設備在線</span>
+            <strong>12/13</strong>
+            <small class="status-alert">1 組風扇待檢</small>
+          </article>
+        </div>
+
+        <div class="overview-grid">
+          <section class="panel sensor-panel">
+            <div class="panel-heading">
+              <h2>環境曲線</h2>
+              <span>近 24 小時</span>
+            </div>
+            <div class="chart" aria-label="溫度與濕度趨勢圖">
+              <div class="chart-grid"></div>
+              <svg viewBox="0 0 720 260" role="img">
+                <polyline class="temp-line" points="0,150 80,132 160,118 240,94 320,72 400,82 480,112 560,138 640,146 720,126"></polyline>
+                <polyline class="humidity-line" points="0,92 80,104 160,120 240,142 320,168 400,158 480,132 560,110 640,96 720,108"></polyline>
+              </svg>
+              <div class="legend">
+                <span><i class="temp-dot"></i>溫度</span>
+                <span><i class="humidity-dot"></i>濕度</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-heading">
+              <h2>今日待辦</h2>
+              <span id="todayTaskCount">0 項</span>
+            </div>
+            <div class="todo-list" id="todayTasks"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="daily-log" class="section two-column">
+        <div class="panel">
+          <div class="panel-heading">
+            <h2>新增每日管理日誌</h2>
+            <span>巡檢、灌溉、施肥、採收</span>
+          </div>
+          <form id="dailyLogForm" class="form-grid">
+            <label>日期<input type="date" id="dailyDate" required></label>
+            <label>作業類型
+              <select id="dailyType">
+                <option>巡檢</option>
+                <option>灌溉</option>
+                <option>施肥</option>
+                <option>病蟲害</option>
+                <option>採收</option>
+                <option>設備維護</option>
+              </select>
+            </label>
+            <label>負責人<input type="text" id="dailyOwner" placeholder="例：王同學"></label>
+            <label>狀態
+              <select id="dailyStatus">
+                <option>已完成</option>
+                <option>觀察中</option>
+                <option>需處理</option>
+              </select>
+            </label>
+            <label class="full">內容<textarea id="dailyNote" rows="4" placeholder="記錄今天的管理內容、異常、處理方式"></textarea></label>
+            <button class="primary-button full" type="submit">新增日誌</button>
+          </form>
+        </div>
+        <div class="panel">
+          <div class="panel-heading">
+            <h2>日誌紀錄</h2>
+            <span id="dailyLogCount">0 筆</span>
+          </div>
+          <div class="feed" id="dailyLogList"></div>
+        </div>
+      </section>
+
+      <section id="system-log" class="section two-column">
+        <div class="panel">
+          <div class="panel-heading">
+            <h2>新增重要系統日誌</h2>
+            <span>感測器、風扇、灌溉、告警</span>
+          </div>
+          <form id="systemLogForm" class="form-grid">
+            <label>時間<input type="datetime-local" id="systemTime" required></label>
+            <label>等級
+              <select id="systemLevel">
+                <option>資訊</option>
+                <option>注意</option>
+                <option>警告</option>
+                <option>嚴重</option>
+              </select>
+            </label>
+            <label class="full">事件<input type="text" id="systemMessage" placeholder="例：南側風扇轉速異常"></label>
+            <button class="primary-button full" type="submit">新增系統日誌</button>
+          </form>
+        </div>
+        <div class="panel">
+          <div class="panel-heading">
+            <h2>重要事件流</h2>
+            <span id="systemLogCount">0 筆</span>
+          </div>
+          <div class="timeline" id="systemLogList"></div>
+        </div>
+      </section>
+
+      <section id="calendar" class="section">
+        <div class="panel">
+          <div class="panel-heading">
+            <h2>四月行事曆</h2>
+            <span>作業排程與實驗節點</span>
+          </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
+        </div>
+      </section>
+
+      <section id="progress" class="section">
+        <div class="panel">
+          <div class="panel-heading">
+            <h2>進度追蹤</h2>
+            <span>拖曳滑桿更新完成度</span>
+          </div>
+          <div class="progress-list" id="progressList"></div>
+        </div>
+      </section>
+
+      <section id="reports" class="section">
+        <div class="panel">
+          <div class="panel-heading">
+            <h2>成果圖表</h2>
+            <span>連結現有智慧溫室分析成果</span>
+          </div>
+          <div class="report-grid">
+            <figure>
+              <img src="assets/temp_humidity_0423.png" alt="0423 溫濕度變化圖">
+              <figcaption>0423 溫濕度變化</figcaption>
+            </figure>
+            <figure>
+              <img src="assets/soil_moisture_0423.png" alt="0423 土壤濕度與溫度圖">
+              <figcaption>0423 土壤濕度與溫度</figcaption>
+            </figure>
+            <figure>
+              <img src="assets/four_group_hourly_air_temperature.png" alt="四組風扇溫度比較圖">
+              <figcaption>四組風扇溫度比較</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
