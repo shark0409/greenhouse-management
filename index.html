@@ -19,7 +19,6 @@
       <nav class="nav" aria-label="主要導覽">
         <a href="#overview" class="active">總覽</a>
         <a href="#daily-log">每日管理日誌</a>
-        <a href="#system-log">重要系統日誌</a>
         <a href="#calendar">行事曆</a>
         <a href="#progress">進度追蹤</a>
         <a href="#reports">管理文件</a>
@@ -188,25 +187,6 @@
           </div>
           <div class="feed" id="dailyLogList"></div>
         </div>
-        <div class="panel full-panel">
-          <div class="panel-heading">
-            <h2>當日感測資料匯入</h2>
-            <span>Excel / CSV 存入本機資料庫</span>
-          </div>
-          <form id="dataFileForm" class="file-form">
-            <label>資料日期<input type="date" id="dataFileDate" required></label>
-            <label class="file-picker">選擇檔案
-              <input type="file" id="dataFileInput" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" required>
-            </label>
-            <label>備註<input type="text" id="dataFileNote" placeholder="例：上午感測器數據、土壤資料"></label>
-            <button class="primary-button" type="submit">儲存檔案</button>
-          </form>
-          <p class="storage-note">檔案會存入網站資料夾內的「本機資料庫」，並依副檔名與日期分類。請用「啟動本機管理網站.bat」開啟網站才能儲存檔案。</p>
-          <div class="file-list" id="dataFileList"></div>
-        </div>
-      </section>
-
-      <section id="system-log" class="section page two-column" data-page="system-log">
         <div class="panel">
           <div class="panel-heading">
             <h2>新增重要系統日誌</h2>
@@ -232,6 +212,22 @@
             <span id="systemLogCount">0 筆</span>
           </div>
           <div class="timeline" id="systemLogList"></div>
+        </div>
+        <div class="panel full-panel">
+          <div class="panel-heading">
+            <h2>當日感測資料匯入</h2>
+            <span>Excel / CSV 存入本機資料庫</span>
+          </div>
+          <form id="dataFileForm" class="file-form">
+            <label>資料日期<input type="date" id="dataFileDate" required></label>
+            <label class="file-picker">選擇檔案
+              <input type="file" id="dataFileInput" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" required>
+            </label>
+            <label>備註<input type="text" id="dataFileNote" placeholder="例：上午感測器數據、土壤資料"></label>
+            <button class="primary-button" type="submit">儲存檔案</button>
+          </form>
+          <p class="storage-note">檔案會存入網站資料夾內的「本機資料庫」，並依副檔名與日期分類。請用「啟動本機管理網站.bat」開啟網站才能儲存檔案。</p>
+          <div class="file-list" id="dataFileList"></div>
         </div>
       </section>
 
