@@ -1,9 +1,6 @@
 const storageKey = "greenhouse-management-v2";
 const apiBase = window.location.protocol === "file:" ? "http://127.0.0.1:8088/api" : "api";
-const dailyLogPreviewCount = 3;
-const dailyLogExpandedCount = 5;
-const systemLogPreviewCount = 3;
-const systemLogExpandedCount = 5;
+
 const defaultState = {
   dailyLogs: [
     {
@@ -60,20 +57,10 @@ const defaultState = {
   }
 };
 
-let state = structuredClone(defaultState);
-let currentMonth = new Date(2026, 3, 1);
-let weatherRefreshTimer = null;
-let dailyLogExpandedView = false;
-let dailyLogPage = 0;
-let systemLogExpandedView = false;
-let systemLogPage = 0;
+let state = migrateState(loadState());
 
 const dailyLogForm = document.querySelector("#dailyLogForm");
 const systemLogForm = document.querySelector("#systemLogForm");
-const todayTaskForm = document.querySelector("#todayTaskForm");
-const dataFileForm = document.querySelector("#dataFileForm");
-const calendarEventForm = document.querySelector("#calendarEventForm");
-const progressForm = document.querySelector("#progressForm");
 const dailyDate = document.querySelector("#dailyDate");
 const systemTime = document.querySelector("#systemTime");
 const dataFileDate = document.querySelector("#dataFileDate");
@@ -121,29 +108,10 @@ async function loadAppState() {
 async function persistState() {
   state = normalizeState(state);
   localStorage.setItem(storageKey, JSON.stringify(state));
-  const response = await fetch(apiUrl("app-state"), {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(state)
-  });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error || "本機資料庫寫入失敗。");
-  }
-  state = normalizeState(await response.json());
 }
 
-function normalizeState(rawState) {
-  const baseState = structuredClone(defaultState);
-  if (rawState && typeof rawState === "object") {
-    ["dailyLogs", "systemLogs", "tasks", "progress"].forEach((key) => {
-      if (Array.isArray(rawState[key])) baseState[key] = rawState[key];
-    });
-    baseState.calendarEvents = normalizeCalendarEvents(rawState.calendarEvents);
-  }
-
-  baseState.tasks = normalizeTasks(baseState.tasks, baseState.calendarEvents);
-  baseState.progress = baseState.progress.map((item) => {
+function migrateState(currentState) {
+  currentState.progress = currentState.progress.map((item) => {
     if (item.name === "管理日誌雲端同步") {
       return { ...item, name: "本機資料備份流程" };
     }
@@ -152,100 +120,15 @@ function normalizeState(rawState) {
     }
     return item;
   });
-  baseState.dailyLogs = [...baseState.dailyLogs]
-    .sort((a, b) => b.date.localeCompare(a.date));
-  return baseState;
-}
-
-function normalizeCalendarEvents(events) {
-  const normalized = {};
-  if (!events || typeof events !== "object") return normalized;
-  Object.entries(events).forEach(([key, items]) => {
-    let isoDate = key;
-    if (/^\d+$/.test(key)) {
-      isoDate = `2026-04-${String(key).padStart(2, "0")}`;
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate) || !Array.isArray(items)) return;
-    const validItems = items
-      .map((item) => {
-        if (typeof item === "string") {
-          return { title: item, type: "排程", note: "" };
-        }
-        if (item && typeof item === "object" && item.title) {
-          return {
-            title: String(item.title).trim(),
-            type: String(item.type || "排程").trim() || "排程",
-            note: String(item.note || "").trim()
-          };
-        }
-        return null;
-      })
-      .filter(Boolean);
-    if (validItems.length) normalized[isoDate] = validItems;
+  Object.keys(currentState.calendarEvents).forEach((day) => {
+    currentState.calendarEvents[day] = currentState.calendarEvents[day].filter((event) => event !== "例行巡檢");
   });
-  return normalized;
+  saveMigratedState(currentState);
+  return currentState;
 }
 
-function normalizeTasks(tasks, calendarEvents) {
-  const validCalendarKeys = new Set();
-  Object.entries(calendarEvents || {}).forEach(([date, items]) => {
-    items.forEach((item) => {
-      const title = String(item.title || "").trim();
-      const type = String(item.type || "排程").trim() || "排程";
-      if (title) {
-        validCalendarKeys.add(buildCalendarTaskKey(date, title, type));
-      }
-    });
-  });
-
-  return (Array.isArray(tasks) ? tasks : [])
-    .map((item, index) => {
-      if (typeof item === "string") {
-        return {
-          id: index + 1,
-          text: item.trim(),
-          done: false,
-          source: "manual",
-          date: ""
-        };
-      }
-      if (!item || typeof item !== "object" || !item.text) {
-        return null;
-      }
-      const text = String(item.text).trim();
-      const source = item.source === "calendar" ? "calendar" : "manual";
-      const date = String(item.date || "").trim();
-      const calendarType = String(item.calendarType || item.type || "").trim();
-      const calendarKey = source === "calendar"
-        ? String(item.calendarKey || buildCalendarTaskKey(date, text, calendarType || "排程")).trim()
-        : "";
-      if (!text) return null;
-      if (source === "calendar") {
-        const isRecurringInspection = text === "巡檢" && calendarType === "例行";
-        if (!isRecurringInspection && !validCalendarKeys.has(calendarKey)) {
-          return null;
-        }
-      }
-      return {
-        id: Number(item.id) || index + 1,
-        text,
-        done: Boolean(item.done),
-        source,
-        date,
-        calendarType: calendarType || (source === "calendar" ? "排程" : ""),
-        calendarKey
-      };
-    })
-    .filter(Boolean);
-}
-
-function renderAll() {
-  renderDailyLogs();
-  renderSystemLogs();
-  renderTasks();
-  renderOverview();
-  renderCalendar();
-  renderProgress();
+function saveMigratedState(currentState) {
+  localStorage.setItem(storageKey, JSON.stringify(currentState));
 }
 
 function renderDailyLogs() {
@@ -379,50 +262,6 @@ function renderOverview() {
   `).join("");
 }
 
-function getTodayTaskItems() {
-  const todayKey = getTodayKey();
-  const manualTasks = state.tasks
-    .filter((task) => task.source !== "calendar" && (!task.date || task.date === todayKey))
-    .sort((a, b) => Number(a.done) - Number(b.done));
-  const savedCalendarTasks = new Map(
-    state.tasks
-      .filter((task) => task.source === "calendar")
-      .map((task) => [task.calendarKey, task])
-  );
-  const todayCalendarTasks = getTodayCalendarEvents().map((event) => {
-    const calendarKey = buildCalendarTaskKey(todayKey, event.title, event.type);
-    const savedTask = savedCalendarTasks.get(calendarKey);
-    return {
-      id: savedTask?.id || calendarKey,
-      text: event.title,
-      done: Boolean(savedTask?.done),
-      source: "calendar",
-      date: todayKey,
-      calendarType: event.type,
-      calendarKey
-    };
-  });
-  return [...manualTasks, ...todayCalendarTasks];
-}
-
-function getTodayCalendarEvents() {
-  const todayKey = getTodayKey();
-  return [{ title: "巡檢", type: "例行", note: "" }, ...(state.calendarEvents[todayKey] || [])];
-}
-
-function getUpcomingCalendarEvents() {
-  const today = new Date(`${getTodayKey()}T00:00:00`);
-  return Object.entries(state.calendarEvents)
-    .flatMap(([date, events]) => events.map((event) => ({
-      date,
-      dateLabel: date.replaceAll("-", "/"),
-      title: event.title,
-      type: event.type
-    })))
-    .filter((item) => new Date(`${item.date}T00:00:00`) >= today)
-    .sort((a, b) => a.date.localeCompare(b.date));
-}
-
 function renderCalendar() {
   const grid = document.querySelector("#calendarGrid");
   const monthLabel = document.querySelector("#calendarMonthLabel");
@@ -497,97 +336,10 @@ dailyLogForm.addEventListener("submit", async (event) => {
     status: document.querySelector("#dailyStatus").value,
     note: document.querySelector("#dailyNote").value.trim() || "未填寫內容"
   });
-  dailyLogPage = 0;
-  try {
-    await persistState();
-    dailyLogForm.reset();
-    dailyDate.value = formatDateInput(new Date());
-    renderAll();
-  } catch (error) {
-    alert(`日誌儲存失敗：${error.message}`);
-  }
-});
-
-systemLogForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  state.systemLogs.unshift({
-    time: systemTime.value,
-    level: document.querySelector("#systemLevel").value,
-    message: document.querySelector("#systemMessage").value.trim() || "未填寫事件內容"
-  });
-  systemLogPage = 0;
-  try {
-    await persistState();
-    systemLogForm.reset();
-    systemTime.value = formatDateTimeLocalInput(new Date());
-    renderAll();
-  } catch (error) {
-    alert(`系統日誌儲存失敗：${error.message}`);
-  }
-});
-
-calendarEventForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const date = calendarEventDate.value;
-  const title = document.querySelector("#calendarEventTitle").value.trim();
-  if (!date || !title) return;
-  const nextEvents = [...(state.calendarEvents[date] || [])];
-  nextEvents.push({
-    title,
-    type: document.querySelector("#calendarEventType").value,
-    note: document.querySelector("#calendarEventNote").value.trim()
-  });
-  state.calendarEvents[date] = nextEvents;
-  try {
-    await persistState();
-    currentMonth = new Date(`${date}T00:00:00`);
-    calendarEventForm.reset();
-    calendarEventDate.value = date;
-    renderAll();
-  } catch (error) {
-    alert(`行事曆儲存失敗：${error.message}`);
-  }
-});
-
-progressForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const nameInput = document.querySelector("#progressName");
-  const valueInput = document.querySelector("#progressValue");
-  const name = nameInput.value.trim();
-  if (!name) return;
-  state.progress.push({
-    name,
-    value: clampProgressValue(Number(valueInput.value))
-  });
-  try {
-    await persistState();
-    progressForm.reset();
-    valueInput.value = "0";
-    renderAll();
-  } catch (error) {
-    alert(`進度項目新增失敗：${error.message}`);
-  }
-});
-
-todayTaskForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const input = document.querySelector("#todayTaskInput");
-  const text = input.value.trim();
-  if (!text) return;
-  state.tasks.unshift({
-    id: getNextTaskId(),
-    text,
-    done: false,
-    source: "manual",
-    date: getTodayKey()
-  });
-  try {
-    await persistState();
-    todayTaskForm.reset();
-    renderAll();
-  } catch (error) {
-    alert(`待辦新增失敗：${error.message}`);
-  }
+  saveState();
+  dailyLogForm.reset();
+  dailyDate.value = "2026-04-25";
+  renderAll();
 });
 
 dataFileForm.addEventListener("submit", async (event) => {
@@ -642,134 +394,8 @@ document.addEventListener("change", async (event) => {
   const taskId = event.target.dataset.taskId;
   if (taskId) {
     const task = state.tasks.find((item) => item.id === Number(taskId));
-    if (!task) return;
     task.done = event.target.checked;
-    try {
-      await persistState();
-      renderAll();
-    } catch (error) {
-      alert(`待辦更新失敗：${error.message}`);
-    }
-    return;
-  }
-
-  const calendarTaskKey = event.target.dataset.calendarTaskKey;
-  if (!calendarTaskKey) return;
-  const existing = state.tasks.find((item) => item.source === "calendar" && item.calendarKey === calendarTaskKey);
-  if (existing) {
-    existing.done = event.target.checked;
-  } else {
-    state.tasks.push({
-      id: getNextTaskId(),
-      text: event.target.dataset.calendarTaskTitle || "未命名行事曆項目",
-      done: event.target.checked,
-      source: "calendar",
-      date: event.target.dataset.calendarTaskDate || getTodayKey(),
-      calendarType: event.target.dataset.calendarTaskType || "排程",
-      calendarKey: calendarTaskKey
-    });
-  }
-  try {
-    await persistState();
-    renderAll();
-  } catch (error) {
-    alert(`待辦更新失敗：${error.message}`);
-  }
-});
-
-document.addEventListener("click", async (event) => {
-  const reportButton = event.target.closest("button[data-report-action]");
-  if (reportButton) {
-    const targetPage = reportButton.dataset.reportAction;
-    if (targetPage) {
-      showPage(targetPage, true);
-    }
-    return;
-  }
-
-  const taskDeleteButton = event.target.closest("button[data-task-action='delete']");
-  if (taskDeleteButton) {
-    const taskId = Number(taskDeleteButton.dataset.taskId);
-    if (!Number.isInteger(taskId)) return;
-    state.tasks = state.tasks.filter((task) => task.id !== taskId);
-    try {
-      await persistState();
-      renderAll();
-    } catch (error) {
-      alert(`待辦刪除失敗：${error.message}`);
-    }
-    return;
-  }
-
-  const calendarDeleteButton = event.target.closest("button[data-calendar-action='delete']");
-  if (calendarDeleteButton) {
-    const date = calendarDeleteButton.dataset.calendarDate;
-    const index = Number(calendarDeleteButton.dataset.calendarIndex);
-    const events = state.calendarEvents[date];
-    if (!date || !Array.isArray(events) || !Number.isInteger(index) || !events[index]) {
-      return;
-    }
-    events.splice(index, 1);
-    if (!events.length) {
-      delete state.calendarEvents[date];
-    }
-    try {
-      await persistState();
-      renderAll();
-    } catch (error) {
-      alert(`行事曆刪除失敗：${error.message}`);
-    }
-    return;
-  }
-
-  const dailyPageButton = event.target.closest("button[data-daily-page-action]");
-  if (dailyPageButton) {
-    const action = dailyPageButton.dataset.dailyPageAction;
-    if (action === "toggle") {
-      dailyLogExpandedView = !dailyLogExpandedView;
-      dailyLogPage = 0;
-    }
-    if (action === "prev" && dailyLogPage > 0) {
-      dailyLogPage -= 1;
-    }
-    if (action === "next") {
-      dailyLogPage += 1;
-    }
-    renderDailyLogs();
-    return;
-  }
-  const systemPageButton = event.target.closest("button[data-system-page-action]");
-  if (systemPageButton) {
-    const action = systemPageButton.dataset.systemPageAction;
-    if (action === "toggle") {
-      systemLogExpandedView = !systemLogExpandedView;
-      systemLogPage = 0;
-    }
-    if (action === "prev" && systemLogPage > 0) {
-      systemLogPage -= 1;
-    }
-    if (action === "next") {
-      systemLogPage += 1;
-    }
-    renderSystemLogs();
-    return;
-  }
-  const button = event.target.closest("button[data-progress-action]");
-  if (!button) return;
-  const index = Number(button.dataset.progressIndex);
-  if (!Number.isInteger(index) || !state.progress[index]) return;
-
-  if (button.dataset.progressAction === "delete") {
-    state.progress.splice(index, 1);
-  }
-
-  if (button.dataset.progressAction === "step") {
-    const step = Number(button.dataset.progressStep || "0");
-    state.progress[index].value = clampProgressValue(state.progress[index].value + step);
-  }
-
-  try {
-    await persistState();
+    saveState();
     renderAll();
   } catch (error) {
     alert(`進度更新失敗：${error.message}`);
@@ -993,34 +619,6 @@ function formatFileSize(size) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function clampProgressValue(value) {
-  return Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
-}
-
-function formatDateKey(year, month, day) {
-  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-function formatDateInput(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function getTodayKey() {
-  return formatDateInput(new Date());
-}
-
-function formatDateTimeLocalInput(date) {
-  return `${formatDateInput(date)}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
-function getNextTaskId() {
-  return state.tasks.reduce((maxId, task) => Math.max(maxId, Number(task.id) || 0), 0) + 1;
-}
-
-function buildCalendarTaskKey(date, title, type) {
-  return `${date}__${type}__${title}`;
 }
 
 function apiUrl(path) {
